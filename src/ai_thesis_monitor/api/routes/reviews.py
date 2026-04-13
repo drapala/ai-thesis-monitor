@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
@@ -39,7 +41,11 @@ def list_claims(session: SessionDep) -> dict[str, list[dict[str, object]]]:
 
 
 @router.post("/claims/{claim_id}")
-def review_claim(claim_id: int, status: str, session: SessionDep) -> dict[str, str | int]:
+def review_claim(
+    claim_id: int,
+    status: Literal["pending_review", "approved", "rejected", "not_required"],
+    session: SessionDep,
+) -> dict[str, str | int]:
     claim = session.get(Claim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail="Claim not found")

@@ -9,8 +9,16 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ai_thesis_monitor.api.app import create_app
-from ai_thesis_monitor.db.models.analytics import Alert, Claim, ModuleScore, NarrativeSnapshot
-from ai_thesis_monitor.db.models.core import Document, DocumentChunk, JobRun, PipelineRun, RawObservation, Source
+from ai_thesis_monitor.db.models.analytics import Alert, Claim, ModuleScore, NarrativeSnapshot, NormalizedMetric
+from ai_thesis_monitor.db.models.core import (
+    Document,
+    DocumentChunk,
+    JobRun,
+    MetricDefinition,
+    PipelineRun,
+    RawObservation,
+    Source,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +31,9 @@ def clean_api_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
+    db_session.execute(delete(MetricDefinition))
     db_session.execute(delete(Source))
     db_session.commit()
     yield
@@ -35,7 +45,9 @@ def clean_api_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
+    db_session.execute(delete(MetricDefinition))
     db_session.execute(delete(Source))
     db_session.commit()
 
@@ -146,6 +158,24 @@ def test_review_and_admin_routes_persist_mutations(db_session: Session) -> None:
     assert pipeline_runs[0].triggered_by == "api"
     assert pipeline_runs[0].inputs == {"job_name": "daily-sync"}
     assert pipeline_runs[0].outputs_summary == {}
+
+
+def test_review_claim_rejects_invalid_status(db_session: Session) -> None:
+    claim = _seed_claim(db_session, dedupe_key="claim-invalid-status", review_status="pending_review")
+    client = TestClient(create_app())
+
+    response = client.post(f"/reviews/claims/{claim.id}", params={"status": "bogus"})
+
+    assert response.status_code == 422
+
+
+def test_review_claim_returns_404_for_missing_claim() -> None:
+    client = TestClient(create_app())
+
+    response = client.post("/reviews/claims/999999", params={"status": "approved"})
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Claim not found"}
 
 
 def _seed_module_scores(db_session: Session) -> None:

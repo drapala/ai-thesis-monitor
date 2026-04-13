@@ -146,6 +146,63 @@ def test_run_weekly_pipeline_requires_consecutive_weeks_for_persistent_deteriora
     assert "labor_persistent_deterioration_3w" not in tripwire_keys
 
 
+def test_run_weekly_pipeline_excludes_rejected_claims_from_evidence_and_tripwires(db_session: Session) -> None:
+    score_date = date(2026, 4, 6)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+
+    initial = run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    assert initial.module_scores_written == 1
+    assert initial.tripwires_written == 1
+    assert db_session.scalar(
+        select(func.count()).select_from(ScoreEvidence).where(ScoreEvidence.evidence_type == "claim")
+    ) == 1
+
+    claim = db_session.scalar(select(Claim).where(Claim.dedupe_key == "weekly-unit-claim"))
+    assert claim is not None
+    claim.review_status = "rejected"
+    db_session.commit()
+
+    rerun = run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    assert rerun.module_scores_written == 1
+    assert rerun.tripwires_written == 0
+    assert rerun.alerts_written == 0
+    assert db_session.scalar(
+        select(func.count()).select_from(ScoreEvidence).where(ScoreEvidence.evidence_type == "claim")
+    ) == 0
+    assert db_session.scalar(select(func.count()).select_from(TripwireEvent)) == 0
+
+    narrative = db_session.scalar(select(NarrativeSnapshot).where(NarrativeSnapshot.snapshot_date == score_date))
+    assert narrative is not None
+    assert "review claim" not in narrative.summary
+    assert "no open questions" in narrative.summary
+
+
+def test_run_weekly_pipeline_keeps_pending_claims_open_but_closes_approved_ones(db_session: Session) -> None:
+    score_date = date(2026, 4, 6)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+
+    run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    claim = db_session.scalar(select(Claim).where(Claim.dedupe_key == "weekly-unit-claim"))
+    assert claim is not None
+    narrative = db_session.scalar(select(NarrativeSnapshot).where(NarrativeSnapshot.snapshot_date == score_date))
+    assert narrative is not None
+    assert f"review claim {claim.id} for module labor" in narrative.summary
+
+    claim.review_status = "approved"
+    db_session.commit()
+
+    rerun = run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    assert rerun.module_scores_written == 1
+    updated_narrative = db_session.scalar(select(NarrativeSnapshot).where(NarrativeSnapshot.snapshot_date == score_date))
+    assert updated_narrative is not None
+    assert f"review claim {claim.id} for module labor" not in updated_narrative.summary
+    assert "no open questions" in updated_narrative.summary
+
+
 def _seed_weekly_inputs(db_session: Session, *, score_date: date) -> None:
     source = Source(
         source_key="weekly_unit_source",

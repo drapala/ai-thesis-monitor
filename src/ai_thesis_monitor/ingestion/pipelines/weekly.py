@@ -25,6 +25,8 @@ from ai_thesis_monitor.domain.scoring.evidence import EvidenceRecord
 from ai_thesis_monitor.domain.tripwires.detect import TripwireResult, detect_tripwires
 
 THREE_DECIMALS = Decimal("0.001")
+OPEN_QUESTION_REVIEW_STATUSES = {"pending_review"}
+WEEKLY_EVIDENCE_REVIEW_STATUSES = {"pending_review", "approved", "not_required"}
 
 
 @dataclass(frozen=True)
@@ -240,7 +242,11 @@ def _load_claim_rows(session: Session, window_start: date, score_date: date) -> 
     return [
         claim
         for claim in claims
-        if (effective_date := _claim_effective_date(claim)) is not None and window_start <= effective_date <= score_date
+        if (
+            claim.review_status in WEEKLY_EVIDENCE_REVIEW_STATUSES
+            and (effective_date := _claim_effective_date(claim)) is not None
+            and window_start <= effective_date <= score_date
+        )
     ]
 
 
@@ -385,7 +391,7 @@ def _open_questions(recent_claims: dict[str, list[Claim]]) -> list[str]:
     questions: list[str] = []
     for claims in recent_claims.values():
         for claim in claims:
-            if claim.review_status != "not_required":
+            if claim.review_status in OPEN_QUESTION_REVIEW_STATUSES:
                 questions.append(f"review claim {claim.id} for module {claim.module_key}")
     return questions
 
