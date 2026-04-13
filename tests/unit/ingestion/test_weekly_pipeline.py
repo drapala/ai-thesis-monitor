@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Session as OrmSession
 
 from ai_thesis_monitor.db.models.analytics import (
     Alert,
@@ -84,6 +84,19 @@ def test_run_weekly_pipeline_persists_outputs_for_explicit_score_date(db_session
     assert narrative.snapshot_date == score_date
     assert narrative.overall_winner == "citrini"
 
+    db_session.commit()
+    persisted = OrmSession(bind=db_session.get_bind())
+    try:
+        assert persisted.scalar(select(func.count()).select_from(ScoreEvidence)) == 2
+        assert persisted.scalar(select(func.count()).select_from(ModuleScore)) == 1
+        assert persisted.scalar(select(func.count()).select_from(TripwireEvent)) == 1
+        assert persisted.scalar(select(func.count()).select_from(Alert)) == 1
+        stored_narrative = persisted.scalar(select(NarrativeSnapshot))
+        assert stored_narrative is not None
+        assert stored_narrative.snapshot_date == score_date
+    finally:
+        persisted.close()
+
     rerun = run_weekly_pipeline(session=db_session, score_date=score_date)
 
     assert rerun == result
@@ -92,6 +105,45 @@ def test_run_weekly_pipeline_persists_outputs_for_explicit_score_date(db_session
     assert db_session.scalar(select(func.count()).select_from(TripwireEvent)) == 1
     assert db_session.scalar(select(func.count()).select_from(Alert)) == 1
     assert db_session.scalar(select(func.count()).select_from(NarrativeSnapshot)) == 1
+
+
+def test_run_weekly_pipeline_requires_consecutive_weeks_for_persistent_deterioration_tripwire(
+    db_session: Session,
+) -> None:
+    score_date = date(2026, 4, 6)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+    db_session.add_all(
+        [
+            ModuleScore(
+                module_key="labor",
+                score_date=date(2026, 3, 9),
+                score_citadel=Decimal("0.000"),
+                score_citrini=Decimal("0.800"),
+                confidence=Decimal("0.700"),
+                winning_thesis="citrini",
+                regime="leaning_citrini",
+                explanation="historical weekly score",
+            ),
+            ModuleScore(
+                module_key="labor",
+                score_date=date(2026, 3, 23),
+                score_citadel=Decimal("0.000"),
+                score_citrini=Decimal("0.900"),
+                confidence=Decimal("0.750"),
+                winning_thesis="citrini",
+                regime="leaning_citrini",
+                explanation="historical weekly score",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    result = run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    assert result.tripwires_written == 1
+    tripwire_keys = set(db_session.scalars(select(TripwireEvent.tripwire_key)))
+    assert "labor_critical_claim" in tripwire_keys
+    assert "labor_persistent_deterioration_3w" not in tripwire_keys
 
 
 def _seed_weekly_inputs(db_session: Session, *, score_date: date) -> None:

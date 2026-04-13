@@ -107,11 +107,12 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
             .limit(2)
         ).all()
         history.reverse()
+        consecutive_history = _consecutive_weekly_history(history, score_date)
 
         detected = detect_tripwires(
             module_key=module_key,
-            score_dates=[*map(lambda row: row.score_date, history), score_date],
-            regimes=[*map(lambda row: row.regime, history), score.regime],
+            score_dates=[*map(lambda row: row.score_date, consecutive_history), score_date],
+            regimes=[*map(lambda row: row.regime, consecutive_history), score.regime],
             critical_claims=[claim.claim_text for claim in recent_claims.get(module_key, [])],
         )
         for tripwire in detected:
@@ -387,6 +388,24 @@ def _open_questions(recent_claims: dict[str, list[Claim]]) -> list[str]:
             if claim.review_status != "not_required":
                 questions.append(f"review claim {claim.id} for module {claim.module_key}")
     return questions
+
+
+def _consecutive_weekly_history(history: list[ModuleScore], score_date: date) -> list[ModuleScore]:
+    if not history:
+        return []
+
+    expected_date = score_date - timedelta(days=7)
+    consecutive: list[ModuleScore] = []
+    for row in reversed(history):
+        if row.score_date != expected_date:
+            if row.score_date < expected_date:
+                break
+            continue
+        consecutive.append(row)
+        expected_date -= timedelta(days=7)
+
+    consecutive.reverse()
+    return consecutive
 
 
 def _score_date_timestamp(score_date: date) -> datetime:

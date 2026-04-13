@@ -35,8 +35,8 @@ def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayRe
             )
 
 
-def _compute_replay_lock_id(run_type: str, start_date: str, end_date: str) -> int:
-    digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
+def _compute_replay_lock_id(run_type: str, score_date: str) -> int:
+    digest = sha256(f"{run_type}|{score_date}".encode("utf-8")).digest()
     return cast(int, struct.unpack(">q", digest[:8])[0])
 
 
@@ -53,8 +53,7 @@ def _replay_week_transaction(
     start_date: str,
     end_date: str,
 ) -> ReplayResult:
-    lock_id = _compute_replay_lock_id("replay_week", start_date, end_date)
-    start_expr = PipelineRun.inputs.op("->>")("start_date")
+    lock_id = _compute_replay_lock_id("replay_week", end_date)
     end_expr = PipelineRun.inputs.op("->>")("end_date")
 
     _acquire_replay_lock(session, lock_id)
@@ -63,7 +62,6 @@ def _replay_week_transaction(
         select(PipelineRun).where(
             PipelineRun.run_type == "replay_week",
             PipelineRun.status == "completed",
-            start_expr == start_date,
             end_expr == end_date,
         )
     )

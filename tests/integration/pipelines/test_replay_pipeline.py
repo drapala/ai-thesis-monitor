@@ -44,6 +44,15 @@ def _replay_filters(start_date: str = REPLAY_START, end_date: str = REPLAY_END):
     )
 
 
+def _replay_score_date_filters(score_date: str = REPLAY_END):
+    inputs_end = PipelineRun.inputs.op("->>")("end_date")
+    return (
+        PipelineRun.run_type == "replay_week",
+        PipelineRun.status == "completed",
+        inputs_end == score_date,
+    )
+
+
 @pytest.fixture(autouse=True)
 def clear_pipeline_runs(db_session) -> None:
     db_session.execute(delete(Alert))
@@ -127,6 +136,27 @@ def test_replay_week_materializes_outputs_for_end_date(db_session) -> None:
     assert db_session.scalar(
         select(func.count()).select_from(NarrativeSnapshot).where(NarrativeSnapshot.snapshot_date == hardcoded_date)
     ) == 0
+
+
+def test_replay_week_fast_paths_same_score_date_even_with_different_start_date(db_session) -> None:
+    score_date = date.fromisoformat(REPLAY_END)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+
+    first = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+    db_session.commit()
+
+    second = replay_week(db_session, start_date="2026-03-29", end_date=REPLAY_END)
+    db_session.commit()
+
+    assert first.module_scores_written == 1
+    assert second == ReplayResult(0, 0, 0, 0)
+    assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 1
+    assert db_session.scalar(select(func.count()).select_from(ModuleScore)) == 1
+    assert db_session.scalar(select(func.count()).select_from(ScoreEvidence)) == 2
+
+    completed_runs = db_session.scalars(select(PipelineRun).where(*_replay_score_date_filters())).all()
+    assert len(completed_runs) == 1
+    assert completed_runs[0].inputs == {"start_date": REPLAY_START, "end_date": REPLAY_END}
 
 
 def test_replay_week_cli_records_run(cli_runner, db_session) -> None:
