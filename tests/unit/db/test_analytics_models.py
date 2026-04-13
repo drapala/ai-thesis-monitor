@@ -109,13 +109,21 @@ def test_analytics_uniqueness_constraints_match_contract() -> None:
         if isinstance(constraint, UniqueConstraint)
     }
 
-    assert (
+    semantic_key = (
         "metric_definition_id",
         "source_id",
         "observed_date",
         "geo",
         "segment",
-    ) in normalized_metrics_unique_columns
+    )
+    assert semantic_key in normalized_metrics_unique_columns
     assert ("dedupe_key",) in claims_unique_columns
     assert ("module_key", "score_date") in module_scores_unique_columns
     assert ("snapshot_date",) in narrative_snapshots_unique_columns
+
+    semantic_constraint = next(
+        constraint
+        for constraint in normalized_metrics.constraints
+        if isinstance(constraint, UniqueConstraint) and tuple(constraint.columns.keys()) == semantic_key
+    )
+    assert semantic_constraint.dialect_options["postgresql"].get("nulls_not_distinct") is True

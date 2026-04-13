@@ -36,6 +36,7 @@ def upgrade() -> None:
             "geo",
             "segment",
             name="uq_normalized_metric_semantic_key",
+            postgresql_nulls_not_distinct=True,
         ),
     )
 
