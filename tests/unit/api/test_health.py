@@ -7,6 +7,15 @@ from fastapi.testclient import TestClient
 from ai_thesis_monitor.api.app import create_app
 
 
+def test_health_route_default_contract() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "service": "ai-thesis-monitor"}
+
+
 def test_health_route_uses_app_settings(monkeypatch) -> None:
     monkeypatch.setenv("APP_NAME", "initial-service")
     app = create_app()
