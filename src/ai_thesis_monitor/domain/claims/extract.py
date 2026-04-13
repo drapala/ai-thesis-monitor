@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -18,10 +19,13 @@ class ExtractedClaim:
     review_status: str
 
 
+_AI_WORD_RE = re.compile(r"\bai\b")
+
+
 def extract_claims(*, title: str, text: str) -> list[ExtractedClaim]:
     normalized = f"{title} {text}".lower()
 
-    if "ai" in normalized and ("layoff" in normalized or "reduce workforce" in normalized):
+    if _AI_WORD_RE.search(normalized) and ("layoff" in normalized or "reduce workforce" in normalized):
         return [
             ExtractedClaim(
                 module_key="labor",

@@ -58,25 +58,49 @@ def run_text_pipeline(session: Session, *, client: httpx.Client, source_keys: li
                 session.flush()
                 raw_count += 1
 
-            document = Document(
-                source_id=source.id,
-                raw_observation_id=raw_observation.id,
-                title=item.get("title", ""),
-                url=item.get("link") or None,
-                body_text=item.get("description", ""),
-                published_at=raw_observation.published_at,
+            document = session.scalar(
+                select(Document).where(
+                    Document.source_id == source.id,
+                    Document.raw_observation_id == raw_observation.id,
+                )
             )
-            session.add(document)
-            session.flush()
+            if document is None:
+                document = Document(
+                    source_id=source.id,
+                    raw_observation_id=raw_observation.id,
+                    title=item.get("title", ""),
+                    url=item.get("link") or None,
+                    body_text=item.get("description", ""),
+                    published_at=raw_observation.published_at,
+                )
+                session.add(document)
+                session.flush()
+            else:
+                document.title = item.get("title", "")
+                document.url = item.get("link") or None
+                document.body_text = item.get("description", "")
+                document.published_at = raw_observation.published_at
 
             for chunk in chunk_text(document.body_text):
-                document_chunk = DocumentChunk(document_id=document.id, **chunk)
-                session.add(document_chunk)
-                session.flush()
+                document_chunk = session.scalar(
+                    select(DocumentChunk).where(
+                        DocumentChunk.document_id == document.id,
+                        DocumentChunk.chunk_index == chunk["chunk_index"],
+                    )
+                )
+                if document_chunk is None:
+                    document_chunk = DocumentChunk(document_id=document.id, **chunk)
+                    session.add(document_chunk)
+                    session.flush()
+                else:
+                    document_chunk.chunk_text = chunk["chunk_text"]
+                    document_chunk.chunk_hash = chunk["chunk_hash"]
 
                 extracted_claims = extract_claims(title=document.title, text=chunk["chunk_text"])
                 for extracted in extracted_claims:
-                    dedupe_key = f"{document_chunk.chunk_hash}:{extracted.claim_type}"
+                    dedupe_key = (
+                        f"{raw_observation.content_hash}:{document_chunk.chunk_hash}:{extracted.claim_type}"
+                    )
                     claim = session.scalar(select(Claim).where(Claim.dedupe_key == dedupe_key))
                     if claim is not None:
                         continue
