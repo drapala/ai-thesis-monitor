@@ -8,6 +8,7 @@ from hashlib import sha256
 from typing import cast
 
 import struct
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -25,9 +26,34 @@ class ReplayResult:
 
 def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayResult:
     _validate_date_window(start_date, end_date)
-    lock_id = _compute_replay_lock_id("replay_week", start_date, end_date)
-    weekly_result = None
+    with Session(bind=_replay_bind(session)) as replay_session:
+        with replay_session.begin():
+            return _replay_week_transaction(
+                replay_session,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
+
+def _compute_replay_lock_id(run_type: str, start_date: str, end_date: str) -> int:
+    digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
+    return cast(int, struct.unpack(">q", digest[:8])[0])
+
+
+def _replay_bind(session: Session) -> Engine:
+    bind = session.get_bind()
+    if isinstance(bind, Connection):
+        return bind.engine
+    return bind
+
+
+def _replay_week_transaction(
+    session: Session,
+    *,
+    start_date: str,
+    end_date: str,
+) -> ReplayResult:
+    lock_id = _compute_replay_lock_id("replay_week", start_date, end_date)
     start_expr = PipelineRun.inputs.op("->>")("start_date")
     end_expr = PipelineRun.inputs.op("->>")("end_date")
 
@@ -44,39 +70,32 @@ def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayRe
     if completed is not None:
         return ReplayResult(0, 0, 0, 0)
 
-    with session.begin_nested():
-        run = PipelineRun(
-            run_type="replay_week",
-            status="running",
-            triggered_by="cli",
-            inputs={"start_date": start_date, "end_date": end_date},
-            outputs_summary={},
-            error_summary=None,
-        )
-        session.add(run)
-        session.flush()
+    run = PipelineRun(
+        run_type="replay_week",
+        status="running",
+        triggered_by="cli",
+        inputs={"start_date": start_date, "end_date": end_date},
+        outputs_summary={},
+        error_summary=None,
+    )
+    session.add(run)
+    session.flush()
 
-        weekly_result = run_weekly_pipeline(
-            module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
-            critical_claims={"labor": []},
-        )
+    weekly_result = run_weekly_pipeline(
+        module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
+        critical_claims={"labor": []},
+    )
 
-        run.outputs_summary = {"mode": "replay"}
-        run.status = "completed"
-        run.finished_at = datetime.now(timezone.utc)
+    run.outputs_summary = {"mode": "replay"}
+    run.status = "completed"
+    run.finished_at = datetime.now(timezone.utc)
 
-    assert weekly_result is not None
     return ReplayResult(
         module_scores_written=weekly_result.module_scores_written,
         tripwires_written=weekly_result.tripwires_written,
         alerts_written=weekly_result.alerts_written,
         narratives_written=weekly_result.narratives_written,
     )
-
-
-def _compute_replay_lock_id(run_type: str, start_date: str, end_date: str) -> int:
-    digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
-    return cast(int, struct.unpack(">q", digest[:8])[0])
 
 
 def _acquire_replay_lock(session: Session, lock_id: int) -> None:
