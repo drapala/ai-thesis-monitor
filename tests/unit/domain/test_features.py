@@ -13,3 +13,17 @@ def test_build_feature_payload_computes_trend_and_acceleration() -> None:
     )
     assert payload["trend_4w"] == "deteriorating"
     assert payload["acceleration"] == "negative"
+
+
+def test_build_feature_payload_handles_empty_series() -> None:
+    payload = build_feature_payload(series=[])
+    assert payload["trend_4w"] == "flat"
+    assert payload["acceleration"] == "flat"
+    assert payload["latest"] is None
+
+
+def test_build_feature_payload_steady_series_acceleration_flat() -> None:
+    steady_series = [Decimal("10"), Decimal("9"), Decimal("8"), Decimal("7")]
+    payload = build_feature_payload(series=steady_series)
+    assert payload["trend_4w"] == "deteriorating"
+    assert payload["acceleration"] == "flat"
