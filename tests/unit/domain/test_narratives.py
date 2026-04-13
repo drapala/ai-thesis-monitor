@@ -39,3 +39,17 @@ def test_build_weekly_summary_favors_winner_aligned_regime_priority() -> None:
     )
     assert "labor" in summary
     assert "strong_citadel" in summary
+
+
+def test_build_weekly_summary_neutral_winner_prefers_strong_regime_irrespective_of_side() -> None:
+    summary = build_weekly_summary(
+        overall_winner="neutral",
+        module_regimes={
+            "labor": "neutral",
+            "productivity": "strong_citadel",
+        },
+        new_evidence=[],
+        open_questions=[],
+    )
+    assert "productivity" in summary
+    assert "strong_citadel" in summary

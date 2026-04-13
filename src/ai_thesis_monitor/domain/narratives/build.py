@@ -42,6 +42,15 @@ def _regime_priority_map(overall_winner: str) -> dict[str, int]:
         "leaning_citrini": 3,
         "strong_citrini": 4,
     }
+    neutral_priority = {
+        "strong_citadel": 0,
+        "strong_citrini": 0,
+        "leaning_citadel": 1,
+        "leaning_citrini": 1,
+        "neutral": 2,
+    }
     if overall_winner == "citadel":
         return citadel_priority
+    if overall_winner == "neutral":
+        return neutral_priority
     return citrini_priority
