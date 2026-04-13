@@ -1,1 +1,27 @@
 .worktrees/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+*.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Misc
+.python-version
+*.log
