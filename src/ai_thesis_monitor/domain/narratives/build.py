@@ -10,13 +10,7 @@ def build_weekly_summary(
     new_evidence: list[str],
     open_questions: list[str],
 ) -> str:
-    regime_priority = {
-        "strong_citrini": 0,
-        "leaning_citrini": 1,
-        "neutral": 2,
-        "leaning_citadel": 3,
-        "strong_citadel": 4,
-    }
+    regime_priority = _regime_priority_map(overall_winner)
     default_rank = max(regime_priority.values()) + 1
     strongest_module = min(
         module_regimes.items(),
@@ -31,3 +25,23 @@ def build_weekly_summary(
         f"New evidence: {evidence_line}. "
         f"Still unconfirmed: {open_question_line}."
     )
+
+
+def _regime_priority_map(overall_winner: str) -> dict[str, int]:
+    citrini_priority = {
+        "strong_citrini": 0,
+        "leaning_citrini": 1,
+        "neutral": 2,
+        "leaning_citadel": 3,
+        "strong_citadel": 4,
+    }
+    citadel_priority = {
+        "strong_citadel": 0,
+        "leaning_citadel": 1,
+        "neutral": 2,
+        "leaning_citrini": 3,
+        "strong_citrini": 4,
+    }
+    if overall_winner == "citadel":
+        return citadel_priority
+    return citrini_priority
