@@ -5,8 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
 
 import httpx
 from sqlalchemy import select
@@ -16,7 +14,7 @@ from ai_thesis_monitor.app.settings import Settings
 from ai_thesis_monitor.db.models.analytics import NormalizedMetric
 from ai_thesis_monitor.db.models.core import MetricDefinition, RawObservation, Source
 from ai_thesis_monitor.ingestion.adapters.fred import FredCsvAdapter
-from ai_thesis_monitor.ingestion.parsers.structured import parse_fred_rows
+from ai_thesis_monitor.ingestion.parsers.structured import FredParsedRow, parse_fred_rows
 
 
 @dataclass(frozen=True)
@@ -95,7 +93,7 @@ def run_structured_pipeline(
     return StructuredPipelineResult(raw_observations=raw_count, normalized_metrics=metric_count)
 
 
-def _latest_row(rows: list[dict[str, date | Decimal]]) -> dict[str, date | Decimal] | None:
+def _latest_row(rows: list[FredParsedRow]) -> FredParsedRow | None:
     if not rows:
         return None
     return max(rows, key=lambda row: row["observed_date"])

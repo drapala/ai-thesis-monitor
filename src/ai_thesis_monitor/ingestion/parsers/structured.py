@@ -4,10 +4,16 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import TypedDict
 
 
-def parse_fred_rows(rows: list[dict[str, str]]) -> list[dict[str, date | Decimal]]:
-    parsed: list[dict[str, date | Decimal]] = []
+class FredParsedRow(TypedDict):
+    observed_date: date
+    value: Decimal
+
+
+def parse_fred_rows(rows: list[dict[str, str]]) -> list[FredParsedRow]:
+    parsed: list[FredParsedRow] = []
     for row in rows:
         value = row["VALUE"]
         if value == ".":
