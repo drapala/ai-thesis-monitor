@@ -85,8 +85,11 @@ def replay_week_command(start_date: str, end_date: str) -> None:
     """Replay the weekly pipeline window (placeholder)."""
 
     session_factory = build_session_factory(Settings.from_env())
-    with session_factory() as session:
-        replay_week_service(session, start_date=start_date, end_date=end_date)
+    try:
+        with session_factory() as session:
+            replay_week_service(session, start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc))
 
     typer.echo(f"replayed {start_date} to {end_date}")
 

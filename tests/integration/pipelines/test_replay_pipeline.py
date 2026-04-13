@@ -68,3 +68,26 @@ def test_replay_week_rolls_back_on_failure(db_session, monkeypatch) -> None:
 
     db_session.expire_all()
     assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 0
+
+
+def test_replay_week_fast_path_releases_lock(db_session) -> None:
+    replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+    second = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+    assert second.module_scores_written == 0
+    assert not db_session.in_transaction()
+
+
+def test_replay_week_rejects_invalid_dates(db_session) -> None:
+    with pytest.raises(ValueError):
+        replay_week(db_session, start_date="not-a-date", end_date=REPLAY_END)
+    assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 0
+
+    with pytest.raises(ValueError):
+        replay_week(db_session, start_date=REPLAY_END, end_date=REPLAY_START)
+    assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 0
+
+
+def test_replay_week_cli_invalid_window(cli_runner, db_session) -> None:
+    result = cli_runner.invoke(app, ["replay-week", "invalid", REPLAY_END])
+    assert result.exit_code != 0
+    assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 0

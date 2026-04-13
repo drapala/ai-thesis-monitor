@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from hashlib import sha256
 from typing import cast
 
@@ -24,6 +24,7 @@ class ReplayResult:
 
 
 def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayResult:
+    _validate_date_window(start_date, end_date)
     _acquire_replay_lock(session, "replay_week", start_date, end_date)
 
     start_expr = PipelineRun.inputs.op("->>")("start_date")
@@ -37,6 +38,7 @@ def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayRe
         )
     )
     if completed is not None:
+        session.rollback()
         return ReplayResult(0, 0, 0, 0)
 
     run = PipelineRun(
@@ -76,3 +78,14 @@ def _acquire_replay_lock(session: Session, run_type: str, start_date: str, end_d
     digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
     lock_id = cast(int, struct.unpack(">q", digest[:8])[0])
     session.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+
+
+def _validate_date_window(start_date: str, end_date: str) -> None:
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise ValueError(f"invalid date window: {exc}") from exc
+
+    if end < start:
+        raise ValueError("end_date must not be earlier than start_date")
