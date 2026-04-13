@@ -6,4 +6,4 @@ def test_version_command_prints_expected_value():
 
     result = CliRunner().invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.stdout
+    assert result.stdout == "0.1.0\n"
