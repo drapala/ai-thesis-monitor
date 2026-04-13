@@ -48,28 +48,47 @@ def run_structured_pipeline(
         payload = {"series_id": series_id, "rows": rows}
         content_hash = _payload_hash(payload)
 
-        raw_observation = RawObservation(
-            source_id=source.id,
-            payload=payload,
-            content_hash=content_hash,
+        raw_observation = db_session.scalar(
+            select(RawObservation).where(
+                RawObservation.source_id == source.id,
+                RawObservation.content_hash == content_hash,
+            )
         )
-        db_session.add(raw_observation)
-        db_session.flush()
-        raw_count += 1
+        if raw_observation is None:
+            raw_observation = RawObservation(
+                source_id=source.id,
+                payload=payload,
+                content_hash=content_hash,
+            )
+            db_session.add(raw_observation)
+            db_session.flush()
+            raw_count += 1
 
         latest_row = _latest_row(parse_fred_rows(rows))
         if latest_row is None:
             continue
 
-        db_session.add(
-            NormalizedMetric(
+        normalized_metric = db_session.scalar(
+            select(NormalizedMetric).where(
+                NormalizedMetric.metric_definition_id == definition.id,
+                NormalizedMetric.source_id == source.id,
+                NormalizedMetric.observed_date == latest_row["observed_date"],
+                NormalizedMetric.geo.is_(None),
+                NormalizedMetric.segment.is_(None),
+            )
+        )
+        if normalized_metric is None:
+            normalized_metric = NormalizedMetric(
                 metric_definition_id=definition.id,
                 source_id=source.id,
                 raw_observation_id=raw_observation.id,
                 observed_date=latest_row["observed_date"],
                 value=latest_row["value"],
             )
-        )
+            db_session.add(normalized_metric)
+        else:
+            normalized_metric.raw_observation_id = raw_observation.id
+            normalized_metric.value = latest_row["value"]
         metric_count += 1
 
     db_session.commit()
