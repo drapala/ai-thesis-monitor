@@ -13,7 +13,16 @@ from ai_thesis_monitor.db.models.base import Base
 
 
 config = context.config
-config.set_main_option("sqlalchemy.url", Settings.from_env().database_url)
+
+
+def _escape_percent_signs(url: str) -> str:
+    return url.replace("%", "%%")
+
+
+config.set_main_option(
+    "sqlalchemy.url",
+    _escape_percent_signs(Settings.from_env().database_url),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
