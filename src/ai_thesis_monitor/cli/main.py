@@ -65,6 +65,27 @@ def seed_reference_data() -> None:
     )
 
 
+@app.command("run-daily")
+def run_daily() -> None:
+    """Run the daily pipeline (placeholder)."""
+
+    typer.echo("daily pipeline completed")
+
+
+@app.command("run-weekly")
+def run_weekly() -> None:
+    """Run the weekly pipeline (placeholder)."""
+
+    typer.echo("weekly pipeline completed")
+
+
+@app.command("replay-week")
+def replay_week_command(start_date: str, end_date: str) -> None:
+    """Replay the weekly pipeline window (placeholder)."""
+
+    typer.echo(f"replayed {start_date} to {end_date}")
+
+
 def main() -> None:
     app()
 
