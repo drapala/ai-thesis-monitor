@@ -10,3 +10,18 @@ def test_build_weekly_summary_mentions_leading_thesis_and_open_questions() -> No
     )
     assert "citrini" in summary.lower()
     assert "unconfirmed" in summary.lower()
+
+
+def test_build_weekly_summary_identifies_strongest_module_by_regime() -> None:
+    summary = build_weekly_summary(
+        overall_winner="citrini",
+        module_regimes={
+            "labor": "neutral",
+            "productivity": "strong_citrini",
+            "services": "leaning_citrini",
+        },
+        new_evidence=[],
+        open_questions=[],
+    )
+    assert "productivity" in summary
+    assert "strong_citrini" in summary

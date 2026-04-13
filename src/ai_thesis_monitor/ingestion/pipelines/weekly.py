@@ -24,6 +24,8 @@ def run_weekly_pipeline(
 ) -> WeeklyPipelineResult:
     tripwire_total = 0
     for module_key, regimes in module_histories.items():
+        if not regimes:
+            continue
         score_dates = [
             date(2026, 4, 13) - timedelta(days=7 * offset)
             for offset in range(len(regimes) - 1, -1, -1)
