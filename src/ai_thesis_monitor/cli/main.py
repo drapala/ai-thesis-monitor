@@ -6,12 +6,18 @@ import typer
 
 from ai_thesis_monitor import __version__
 
-app = typer.Typer(help="AI Thesis Monitor CLI")
+app = typer.Typer(
+    name="ai-thesis-monitor",
+    help="AI Thesis Monitor CLI",
+    invoke_without_command=True,
+)
 
 
 @app.callback(invoke_without_command=True)
-def _root() -> None:
-    """Entry point for the CLI group."""
+def _root(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command()

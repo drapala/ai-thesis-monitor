@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-thesis-monitor"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Runtime primitives for tracking AI thesis deployments."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,3 +36,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "ai_thesis_monitor.__version__" }
