@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from queue import Queue
+from threading import Event, Thread
+
 import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as OrmSession
 
 from ai_thesis_monitor.cli.main import app
 from ai_thesis_monitor.db.models.core import PipelineRun, Source
-from ai_thesis_monitor.ops.replay.service import replay_week
+from ai_thesis_monitor.ops.replay.service import ReplayResult, replay_week
 
 REPLAY_START = "2026-03-30"
 REPLAY_END = "2026-04-06"
@@ -76,6 +79,71 @@ def test_replay_week_fast_path_releases_lock(db_session) -> None:
     second = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
     assert second.module_scores_written == 0
     assert not db_session.in_nested_transaction()
+
+
+def test_replay_week_blocks_second_session_until_first_commit(db_session, monkeypatch) -> None:
+    second_finished = Event()
+    second_lock_attempted = Event()
+    second_outcome: Queue[ReplayResult | BaseException] = Queue(maxsize=1)
+    bind = db_session.get_bind()
+    original_acquire = "ai_thesis_monitor.ops.replay.service._acquire_replay_lock"
+    lock_attempts = {"count": 0}
+
+    def record_second_lock_attempt(session, lock_id):
+        lock_attempts["count"] += 1
+        if lock_attempts["count"] == 2:
+            second_lock_attempted.set()
+        return acquire_replay_lock(session, lock_id)
+
+    from ai_thesis_monitor.ops.replay.service import _acquire_replay_lock as acquire_replay_lock
+
+    monkeypatch.setattr(original_acquire, record_second_lock_attempt)
+
+    first = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+    assert first.module_scores_written >= 0
+
+    def run_second_replay() -> None:
+        session = OrmSession(bind)
+        try:
+            result = replay_week(session, start_date=REPLAY_START, end_date=REPLAY_END)
+            session.commit()
+            second_outcome.put(result)
+        except BaseException as exc:
+            second_outcome.put(exc)
+        finally:
+            second_finished.set()
+            session.close()
+
+    thread = Thread(target=run_second_replay)
+    thread.start()
+
+    try:
+        assert second_lock_attempted.wait(timeout=2)
+        assert not second_finished.wait(timeout=0.2)
+
+        db_session.commit()
+
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+
+        outcome = second_outcome.get_nowait()
+        if isinstance(outcome, BaseException):
+            raise outcome
+
+        verifier = OrmSession(bind)
+        try:
+            completed_runs = verifier.scalars(
+                select(PipelineRun).where(*_replay_filters(), PipelineRun.status == "completed")
+            ).all()
+        finally:
+            verifier.close()
+
+        assert outcome.module_scores_written == 0
+        assert len(completed_runs) == 1
+    finally:
+        if db_session.in_transaction():
+            db_session.rollback()
+        thread.join(timeout=2)
 
 
 def test_replay_week_rejects_invalid_dates(db_session) -> None:
