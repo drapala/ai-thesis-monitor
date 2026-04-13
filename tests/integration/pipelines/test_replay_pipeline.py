@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from queue import Queue
 from threading import Event, Thread
 
@@ -7,8 +9,24 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as OrmSession
 
+from ai_thesis_monitor.db.models.analytics import (
+    Alert,
+    Claim,
+    ModuleScore,
+    NarrativeSnapshot,
+    NormalizedMetric,
+    ScoreEvidence,
+    TripwireEvent,
+)
 from ai_thesis_monitor.cli.main import app
-from ai_thesis_monitor.db.models.core import PipelineRun, Source
+from ai_thesis_monitor.db.models.core import (
+    Document,
+    DocumentChunk,
+    MetricDefinition,
+    PipelineRun,
+    RawObservation,
+    Source,
+)
 from ai_thesis_monitor.ingestion.pipelines.weekly import WeeklyPipelineResult
 from ai_thesis_monitor.ops.replay.service import ReplayResult, replay_week
 
@@ -28,10 +46,34 @@ def _replay_filters(start_date: str = REPLAY_START, end_date: str = REPLAY_END):
 
 @pytest.fixture(autouse=True)
 def clear_pipeline_runs(db_session) -> None:
+    db_session.execute(delete(Alert))
+    db_session.execute(delete(TripwireEvent))
+    db_session.execute(delete(NarrativeSnapshot))
+    db_session.execute(delete(ModuleScore))
+    db_session.execute(delete(ScoreEvidence))
+    db_session.execute(delete(Claim))
+    db_session.execute(delete(DocumentChunk))
+    db_session.execute(delete(Document))
+    db_session.execute(delete(NormalizedMetric))
+    db_session.execute(delete(RawObservation))
+    db_session.execute(delete(MetricDefinition))
     db_session.execute(delete(PipelineRun))
+    db_session.execute(delete(Source))
     db_session.commit()
     yield
+    db_session.execute(delete(Alert))
+    db_session.execute(delete(TripwireEvent))
+    db_session.execute(delete(NarrativeSnapshot))
+    db_session.execute(delete(ModuleScore))
+    db_session.execute(delete(ScoreEvidence))
+    db_session.execute(delete(Claim))
+    db_session.execute(delete(DocumentChunk))
+    db_session.execute(delete(Document))
+    db_session.execute(delete(NormalizedMetric))
+    db_session.execute(delete(RawObservation))
+    db_session.execute(delete(MetricDefinition))
     db_session.execute(delete(PipelineRun))
+    db_session.execute(delete(Source))
     db_session.commit()
 
 
@@ -52,6 +94,41 @@ def test_replay_week_is_idempotent(db_session) -> None:
     assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 1
 
 
+def test_replay_week_materializes_outputs_for_end_date(db_session) -> None:
+    score_date = date.fromisoformat(REPLAY_END)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+
+    result = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+
+    assert result.module_scores_written == 1
+    assert result.tripwires_written == 1
+    assert result.alerts_written == 1
+    assert result.narratives_written == 1
+
+    module_score = db_session.scalar(select(ModuleScore))
+    assert module_score is not None
+    assert module_score.score_date == score_date
+
+    tripwire = db_session.scalar(select(TripwireEvent))
+    assert tripwire is not None
+    assert tripwire.event_date == score_date
+
+    narrative = db_session.scalar(select(NarrativeSnapshot))
+    assert narrative is not None
+    assert narrative.snapshot_date == score_date
+
+    hardcoded_date = date(2026, 4, 13)
+    assert db_session.scalar(
+        select(func.count()).select_from(ModuleScore).where(ModuleScore.score_date == hardcoded_date)
+    ) == 0
+    assert db_session.scalar(
+        select(func.count()).select_from(TripwireEvent).where(TripwireEvent.event_date == hardcoded_date)
+    ) == 0
+    assert db_session.scalar(
+        select(func.count()).select_from(NarrativeSnapshot).where(NarrativeSnapshot.snapshot_date == hardcoded_date)
+    ) == 0
+
+
 def test_replay_week_cli_records_run(cli_runner, db_session) -> None:
     result = cli_runner.invoke(app, ["replay-week", REPLAY_START, REPLAY_END])
     assert result.exit_code == 0
@@ -63,7 +140,7 @@ def test_replay_week_cli_records_run(cli_runner, db_session) -> None:
 
 
 def test_replay_week_rolls_back_on_failure(db_session, monkeypatch) -> None:
-    def fail(*, module_histories, critical_claims):
+    def fail(*, session, score_date):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("ai_thesis_monitor.ops.replay.service.run_weekly_pipeline", fail)
@@ -101,7 +178,7 @@ def test_replay_week_failure_does_not_block_retry_until_caller_rollback(db_sessi
             second_lock_attempted.set()
         return acquire_replay_lock(session, lock_id)
 
-    def fail_once(*, module_histories, critical_claims):
+    def fail_once(*, session, score_date):
         pipeline_attempts["count"] += 1
         if pipeline_attempts["count"] == 1:
             raise RuntimeError("boom")
@@ -281,3 +358,100 @@ def test_replay_week_preserves_outer_transaction(db_session) -> None:
             other_session.close()
     finally:
         transaction.rollback()
+
+
+def _seed_weekly_inputs(db_session, *, score_date: date) -> None:
+    source = Source(
+        source_key="replay_weekly_source",
+        source_name="Replay Weekly Source",
+        source_type="test",
+        base_url="https://example.test/replay-weekly",
+        config={},
+        reliability_score=0.79,
+        active=True,
+    )
+    metric_definition = MetricDefinition(
+        metric_key="software_postings_yoy",
+        module_key="labor",
+        name="Software Job Postings YoY",
+        description="Synthetic test metric for replay scoring",
+        frequency="weekly",
+        unit="index",
+        lag_category="short",
+        weight=1.2,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="value",
+        signal_transform="identity",
+        min_history_points=1,
+        is_leading=True,
+        config={},
+        is_active=True,
+    )
+    db_session.add(source)
+    db_session.add(metric_definition)
+    db_session.flush()
+
+    raw_observation = RawObservation(
+        source_id=source.id,
+        external_id="replay-weekly-raw",
+        payload={"kind": "replay-weekly"},
+        content_hash="replay-weekly-raw",
+        published_at=datetime(2026, 4, 5, tzinfo=timezone.utc),
+    )
+    db_session.add(raw_observation)
+    db_session.flush()
+
+    document = Document(
+        source_id=source.id,
+        raw_observation_id=raw_observation.id,
+        title="Replay weekly labor evidence",
+        url="https://example.test/replay/weekly/labor",
+        body_text="Synthetic replay weekly evidence body",
+        published_at=raw_observation.published_at,
+    )
+    db_session.add(document)
+    db_session.flush()
+
+    chunk = DocumentChunk(
+        document_id=document.id,
+        chunk_index=0,
+        chunk_text="Synthetic replay weekly evidence chunk",
+        chunk_hash="replay-weekly-chunk",
+    )
+    db_session.add(chunk)
+    db_session.flush()
+
+    db_session.add(
+        NormalizedMetric(
+            metric_definition_id=metric_definition.id,
+            source_id=source.id,
+            raw_observation_id=raw_observation.id,
+            geo=None,
+            segment=None,
+            observed_date=score_date,
+            value=Decimal("-0.900"),
+            quality_score=Decimal("0.850"),
+            notes="Negative normalized trend for replay labor",
+        )
+    )
+    db_session.add(
+        Claim(
+            source_id=source.id,
+            raw_observation_id=raw_observation.id,
+            document_id=document.id,
+            chunk_id=chunk.id,
+            module_key="labor",
+            claim_type="headcount_reduction_ai_efficiency",
+            entity="Replay Example Co",
+            claim_text="Replay Example Co said AI efficiency reduced labor demand.",
+            evidence_direction="citrini",
+            strength=Decimal("0.900"),
+            confidence=Decimal("0.850"),
+            evidence_date=score_date,
+            published_date=score_date,
+            dedupe_key="replay-weekly-claim",
+            review_status="pending_review",
+        )
+    )
+    db_session.commit()

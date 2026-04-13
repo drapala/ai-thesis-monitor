@@ -82,11 +82,18 @@ def _replay_week_transaction(
     session.flush()
 
     weekly_result = run_weekly_pipeline(
-        module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
-        critical_claims={"labor": []},
+        session=session,
+        score_date=date.fromisoformat(end_date),
     )
 
-    run.outputs_summary = {"mode": "replay"}
+    run.outputs_summary = {
+        "mode": "replay",
+        "score_date": end_date,
+        "module_scores_written": weekly_result.module_scores_written,
+        "tripwires_written": weekly_result.tripwires_written,
+        "alerts_written": weekly_result.alerts_written,
+        "narratives_written": weekly_result.narratives_written,
+    }
     run.status = "completed"
     run.finished_at = datetime.now(timezone.utc)
 
