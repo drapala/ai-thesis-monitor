@@ -76,12 +76,24 @@ def test_replay_week_rolls_back_on_failure(db_session, monkeypatch) -> None:
 
 
 def test_replay_week_failure_does_not_block_retry_until_caller_rollback(db_session, monkeypatch) -> None:
-    second_finished = Event()
     second_lock_attempted = Event()
     second_outcome: Queue[ReplayResult | BaseException] = Queue(maxsize=1)
     bind = db_session.get_bind()
     lock_attempts = {"count": 0}
     pipeline_attempts = {"count": 0}
+    transaction = db_session.begin()
+    sentinel = Source(
+        source_key="replay_failure_guard",
+        source_name="Replay Failure Guard",
+        source_type="test",
+        base_url="https://example.test/failure",
+        config={"guard": "failure"},
+        reliability_score=0.61,
+        active=True,
+    )
+    db_session.add(sentinel)
+    db_session.flush()
+    sentinel_id = sentinel.id
 
     def record_lock_attempt(session, lock_id):
         lock_attempts["count"] += 1
@@ -117,7 +129,6 @@ def test_replay_week_failure_does_not_block_retry_until_caller_rollback(db_sessi
         except BaseException as exc:
             second_outcome.put(exc)
         finally:
-            second_finished.set()
             session.close()
 
     thread = Thread(target=run_second_replay)
@@ -125,7 +136,8 @@ def test_replay_week_failure_does_not_block_retry_until_caller_rollback(db_sessi
 
     try:
         assert second_lock_attempted.wait(timeout=2)
-        assert second_finished.wait(timeout=0.2)
+        thread.join(timeout=2)
+        assert not thread.is_alive()
 
         outcome = second_outcome.get_nowait()
         if isinstance(outcome, BaseException):
@@ -136,14 +148,14 @@ def test_replay_week_failure_does_not_block_retry_until_caller_rollback(db_sessi
             completed_runs = verifier.scalars(
                 select(PipelineRun).where(*_replay_filters(), PipelineRun.status == "completed")
             ).all()
+            assert verifier.get(Source, sentinel_id) is None
         finally:
             verifier.close()
 
         assert outcome.module_scores_written == 2
         assert len(completed_runs) == 1
     finally:
-        if db_session.in_transaction():
-            db_session.rollback()
+        transaction.rollback()
         thread.join(timeout=2)
 
 
@@ -157,7 +169,6 @@ def test_replay_week_fast_path_releases_lock(db_session) -> None:
 def test_replay_week_second_session_fast_paths_without_waiting_for_caller_transaction(
     db_session, monkeypatch
 ) -> None:
-    second_finished = Event()
     second_lock_attempted = Event()
     second_outcome: Queue[ReplayResult | BaseException] = Queue(maxsize=1)
     bind = db_session.get_bind()
@@ -199,7 +210,6 @@ def test_replay_week_second_session_fast_paths_without_waiting_for_caller_transa
         except BaseException as exc:
             second_outcome.put(exc)
         finally:
-            second_finished.set()
             session.close()
 
     thread = Thread(target=run_second_replay)
@@ -207,8 +217,6 @@ def test_replay_week_second_session_fast_paths_without_waiting_for_caller_transa
 
     try:
         assert second_lock_attempted.wait(timeout=2)
-        assert second_finished.wait(timeout=0.2)
-
         thread.join(timeout=2)
         assert not thread.is_alive()
 
