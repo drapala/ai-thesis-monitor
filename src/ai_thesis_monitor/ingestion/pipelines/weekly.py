@@ -27,6 +27,7 @@ from ai_thesis_monitor.domain.tripwires.detect import TripwireResult, detect_tri
 THREE_DECIMALS = Decimal("0.001")
 OPEN_QUESTION_REVIEW_STATUSES = {"pending_review"}
 WEEKLY_EVIDENCE_REVIEW_STATUSES = {"pending_review", "approved", "not_required"}
+PENDING_REVIEW_CLAIM_WEIGHT = Decimal("0.500")
 
 
 @dataclass(frozen=True)
@@ -296,8 +297,9 @@ def _metric_to_evidence(
 def _claim_to_evidence(claim: Claim) -> EvidenceRecord:
     direction = claim.evidence_direction if claim.evidence_direction in {"citadel", "citrini"} else "neutral"
     strength = _quantize(Decimal(claim.strength))
+    weight = _claim_evidence_weight(claim.review_status)
     quality = _quantize(Decimal(claim.confidence))
-    contribution = _quantize(strength * quality)
+    contribution = _quantize(strength * quality * weight)
     contribution_citadel = Decimal("0.000")
     contribution_citrini = Decimal("0.000")
     if direction == "citadel":
@@ -312,13 +314,19 @@ def _claim_to_evidence(claim: Claim) -> EvidenceRecord:
         direction=direction,
         strength=strength,
         impact=Decimal("1.000"),
-        weight=Decimal("1.000"),
+        weight=weight,
         quality=quality,
         contribution_citadel=contribution_citadel,
         contribution_citrini=contribution_citrini,
         explanation=claim.claim_text,
         references={"claim_id": str(claim.id)},
     )
+
+
+def _claim_evidence_weight(review_status: str) -> Decimal:
+    if review_status == "pending_review":
+        return PENDING_REVIEW_CLAIM_WEIGHT
+    return Decimal("1.000")
 
 
 def _metric_direction(*, value: Decimal, expected_direction_citadel: str) -> str:

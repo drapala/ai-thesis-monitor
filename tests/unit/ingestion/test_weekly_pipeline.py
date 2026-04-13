@@ -203,6 +203,47 @@ def test_run_weekly_pipeline_keeps_pending_claims_open_but_closes_approved_ones(
     assert "no open questions" in updated_narrative.summary
 
 
+def test_run_weekly_pipeline_reduces_pending_review_claim_weight_vs_approved(db_session: Session) -> None:
+    score_date = date(2026, 4, 6)
+    _seed_weekly_inputs(db_session, score_date=score_date)
+
+    run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    pending_claim_evidence = db_session.scalar(
+        select(ScoreEvidence)
+        .where(ScoreEvidence.score_date == score_date, ScoreEvidence.evidence_type == "claim")
+        .order_by(ScoreEvidence.id.desc())
+    )
+    pending_module_score = db_session.scalar(select(ModuleScore).where(ModuleScore.score_date == score_date))
+    assert pending_claim_evidence is not None
+    assert pending_module_score is not None
+    pending_contribution_citrini = pending_claim_evidence.contribution_citrini
+    pending_weight = pending_claim_evidence.weight
+    pending_score_citrini = pending_module_score.score_citrini
+
+    claim = db_session.scalar(select(Claim).where(Claim.dedupe_key == "weekly-unit-claim"))
+    assert claim is not None
+    claim.review_status = "approved"
+    db_session.commit()
+
+    run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    approved_claim_evidence = db_session.scalar(
+        select(ScoreEvidence)
+        .where(ScoreEvidence.score_date == score_date, ScoreEvidence.evidence_type == "claim")
+        .order_by(ScoreEvidence.id.desc())
+    )
+    approved_module_score = db_session.scalar(select(ModuleScore).where(ModuleScore.score_date == score_date))
+    assert approved_claim_evidence is not None
+    assert approved_module_score is not None
+
+    assert pending_contribution_citrini == Decimal("0.383")
+    assert approved_claim_evidence.contribution_citrini == Decimal("0.765")
+    assert pending_weight == Decimal("0.500")
+    assert approved_claim_evidence.weight == Decimal("1.000")
+    assert approved_module_score.score_citrini > pending_score_citrini
+
+
 def _seed_weekly_inputs(db_session: Session, *, score_date: date) -> None:
     source = Source(
         source_key="weekly_unit_source",
