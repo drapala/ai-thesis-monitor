@@ -1,6 +1,9 @@
 """Replay utilities."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,32 +23,41 @@ class ReplayResult:
 def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayResult:
     start_expr = PipelineRun.inputs.op("->>")("start_date")
     end_expr = PipelineRun.inputs.op("->>")("end_date")
-    existing = session.scalar(
+    completed = session.scalar(
         select(PipelineRun).where(
             PipelineRun.run_type == "replay_week",
+            PipelineRun.status == "completed",
             start_expr == start_date,
             end_expr == end_date,
         )
     )
-    if existing is not None:
+    if completed is not None:
         return ReplayResult(0, 0, 0, 0)
 
-    session.add(
-        PipelineRun(
-            run_type="replay_week",
-            status="completed",
-            triggered_by="cli",
-            inputs={"start_date": start_date, "end_date": end_date},
-            outputs_summary={"mode": "replay"},
-            error_summary=None,
-        )
+    run = PipelineRun(
+        run_type="replay_week",
+        status="running",
+        triggered_by="cli",
+        inputs={"start_date": start_date, "end_date": end_date},
+        outputs_summary={},
+        error_summary=None,
     )
-    session.commit()
+    session.add(run)
+    session.flush()
 
-    weekly_result = run_weekly_pipeline(
-        module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
-        critical_claims={"labor": []},
-    )
+    try:
+        weekly_result = run_weekly_pipeline(
+            module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
+            critical_claims={"labor": []},
+        )
+    except Exception:
+        session.rollback()
+        raise
+
+    run.outputs_summary = {"mode": "replay"}
+    run.status = "completed"
+    run.finished_at = datetime.now(timezone.utc)
+    session.commit()
 
     return ReplayResult(
         module_scores_written=weekly_result.module_scores_written,

@@ -11,6 +11,7 @@ from ai_thesis_monitor.app.settings import Settings
 from ai_thesis_monitor.db.models.core import MetricDefinition, Source
 from ai_thesis_monitor.db.seeds.metric_definitions import METRIC_DEFINITION_SEED_ROWS
 from ai_thesis_monitor.db.seeds.sources import SOURCE_SEED_ROWS
+from ai_thesis_monitor.ops.replay.service import replay_week as replay_week_service
 
 app = typer.Typer(
     name="ai-thesis-monitor",
@@ -82,6 +83,10 @@ def run_weekly() -> None:
 @app.command("replay-week")
 def replay_week_command(start_date: str, end_date: str) -> None:
     """Replay the weekly pipeline window (placeholder)."""
+
+    session_factory = build_session_factory(Settings.from_env())
+    with session_factory() as session:
+        replay_week_service(session, start_date=start_date, end_date=end_date)
 
     typer.echo(f"replayed {start_date} to {end_date}")
 
