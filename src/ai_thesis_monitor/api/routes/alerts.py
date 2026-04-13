@@ -7,6 +7,6 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-@router.get("/")
+@router.get("")
 def list_alerts() -> dict[str, list]:
     return {"items": []}

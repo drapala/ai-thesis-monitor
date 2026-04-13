@@ -13,5 +13,5 @@ def list_claims() -> dict[str, list]:
 
 
 @router.post("/claims/{claim_id}")
-def review_claim(claim_id: int, status: str) -> dict[str, str]:
+def review_claim(claim_id: int, status: str) -> dict[str, str | int]:
     return {"claim_id": claim_id, "status": status}
