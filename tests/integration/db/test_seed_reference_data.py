@@ -1,10 +1,40 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from copy import deepcopy
+
+import pytest
+from sqlalchemy import delete, select
 from typer.testing import CliRunner
 
 from ai_thesis_monitor.cli.main import app
 from ai_thesis_monitor.db.models.core import MetricDefinition, Source
+
+EXPECTED_SOURCE_CONTRACT: dict[str, dict] = {
+    "fred": {
+        "source_name": "Federal Reserve Economic Data",
+        "source_type": "structured_csv",
+        "base_url": "https://fred.stlouisfed.org",
+        "config": {"path": "/graph/fredgraph.csv"},
+        "reliability_score": 0.95,
+        "active": True,
+    },
+    "rss_macro": {
+        "source_name": "Macro RSS Feed",
+        "source_type": "rss",
+        "base_url": "https://feeds.feedburner.com/CalculatedRisk",
+        "config": {"kind": "macro"},
+        "reliability_score": 0.85,
+        "active": True,
+    },
+    "rss_corporate_ir": {
+        "source_name": "Corporate IR RSS Feed",
+        "source_type": "rss",
+        "base_url": "https://investor.servicenow.com/rss/news-releases.xml",
+        "config": {"kind": "corporate"},
+        "reliability_score": 0.82,
+        "active": True,
+    },
+}
 
 EXPECTED_METRIC_CONTRACT: dict[str, dict] = {
     "ai_adoption_work_total": {
@@ -378,14 +408,39 @@ EXPECTED_METRIC_CONTRACT: dict[str, dict] = {
 }
 
 
+@pytest.fixture(autouse=True)
+def clean_reference_tables(db_session) -> None:
+    db_session.execute(delete(MetricDefinition))
+    db_session.execute(delete(Source))
+    db_session.commit()
+    yield
+    db_session.execute(delete(MetricDefinition))
+    db_session.execute(delete(Source))
+    db_session.commit()
+
+
 def test_seed_reference_data_populates_required_sources_and_metrics(
     cli_runner: CliRunner, db_session
 ) -> None:
+    assert db_session.scalar(select(Source.id).limit(1)) is None
+    assert db_session.scalar(select(MetricDefinition.id).limit(1)) is None
+
     result = cli_runner.invoke(app, ["seed-reference-data"])
     assert result.exit_code == 0
 
-    source_keys = set(db_session.scalars(select(Source.source_key)))
-    assert {"fred", "rss_macro", "rss_corporate_ir"}.issubset(source_keys)
+    sources = {
+        source.source_key: source
+        for source in db_session.scalars(select(Source)).all()
+    }
+    assert set(EXPECTED_SOURCE_CONTRACT) <= set(sources)
+    for source_key, expected in EXPECTED_SOURCE_CONTRACT.items():
+        source = sources[source_key]
+        assert source.source_name == expected["source_name"]
+        assert source.source_type == expected["source_type"]
+        assert source.base_url == expected["base_url"]
+        assert source.config == expected["config"]
+        assert source.reliability_score == expected["reliability_score"]
+        assert source.active == expected["active"]
 
     metric_keys = set(db_session.scalars(select(MetricDefinition.metric_key)))
     assert {
@@ -396,6 +451,81 @@ def test_seed_reference_data_populates_required_sources_and_metrics(
         "saas_renewal_discount_mentions",
         "prime_mortgage_delinquency_tech_metros",
     }.issubset(metric_keys)
+
+
+def test_seed_reference_data_updates_stale_reference_rows(
+    cli_runner: CliRunner, db_session
+) -> None:
+    stale_source = Source(
+        source_key="rss_macro",
+        source_name="Old Source Name",
+        source_type="rss",
+        base_url="https://example.com/stale.xml",
+        config={"kind": "stale"},
+        reliability_score=0.10,
+        active=False,
+    )
+    stale_metric_payload = deepcopy(EXPECTED_METRIC_CONTRACT["saas_renewal_discount_mentions"])
+    stale_metric_payload.update(
+        {
+            "metric_key": "saas_renewal_discount_mentions",
+            "module_key": "wrong_module",
+            "name": "Old Metric Name",
+            "description": "stale",
+            "frequency": "monthly",
+            "unit": "index",
+            "lag_category": "confirmatory",
+            "weight": 9.99,
+            "expected_direction_citadel": "up",
+            "expected_direction_citrini": "down",
+            "primary_feature_key": "old_feature",
+            "signal_transform": "old_transform",
+            "min_history_points": 99,
+            "is_leading": False,
+            "config": {"manual": True},
+            "is_active": True,
+        }
+    )
+    stale_metric = MetricDefinition(**stale_metric_payload)
+
+    db_session.add(stale_source)
+    db_session.add(stale_metric)
+    db_session.commit()
+
+    result = cli_runner.invoke(app, ["seed-reference-data"])
+    assert result.exit_code == 0
+
+    db_session.expire_all()
+
+    source = db_session.scalar(select(Source).where(Source.source_key == "rss_macro"))
+    assert source is not None
+    expected_source = EXPECTED_SOURCE_CONTRACT["rss_macro"]
+    assert source.source_name == expected_source["source_name"]
+    assert source.source_type == expected_source["source_type"]
+    assert source.base_url == expected_source["base_url"]
+    assert source.config == expected_source["config"]
+    assert source.reliability_score == expected_source["reliability_score"]
+    assert source.active == expected_source["active"]
+
+    metric = db_session.scalar(
+        select(MetricDefinition).where(MetricDefinition.metric_key == "saas_renewal_discount_mentions")
+    )
+    assert metric is not None
+    expected_metric = EXPECTED_METRIC_CONTRACT["saas_renewal_discount_mentions"]
+    assert metric.module_key == expected_metric["module_key"]
+    assert metric.name == expected_metric["name"]
+    assert metric.description == expected_metric["description"]
+    assert metric.frequency == expected_metric["frequency"]
+    assert metric.unit == expected_metric["unit"]
+    assert metric.lag_category == expected_metric["lag_category"]
+    assert metric.weight == expected_metric["weight"]
+    assert metric.expected_direction_citadel == expected_metric["expected_direction_citadel"]
+    assert metric.expected_direction_citrini == expected_metric["expected_direction_citrini"]
+    assert metric.primary_feature_key == expected_metric["primary_feature_key"]
+    assert metric.signal_transform == expected_metric["signal_transform"]
+    assert metric.min_history_points == expected_metric["min_history_points"]
+    assert metric.is_leading == expected_metric["is_leading"]
+    assert metric.config == expected_metric["config"]
 
 
 def test_seed_reference_data_matches_approved_metric_contract(
