@@ -48,11 +48,11 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
     evidence_by_module: dict[str, list[EvidenceRecord]] = {}
     recent_claims: dict[str, list[Claim]] = {}
 
-    for evidence in metric_evidence:
-        evidence_by_module.setdefault(evidence.module_key, []).append(evidence)
+    for evidence_row in metric_evidence:
+        evidence_by_module.setdefault(evidence_row.module_key, []).append(evidence_row)
     for claim in claim_rows:
-        evidence = _claim_to_evidence(claim)
-        evidence_by_module.setdefault(evidence.module_key, []).append(evidence)
+        claim_evidence = _claim_to_evidence(claim)
+        evidence_by_module.setdefault(claim_evidence.module_key, []).append(claim_evidence)
         recent_claims.setdefault(claim.module_key, []).append(claim)
 
     score_evidence_rows: list[ScoreEvidence] = []
@@ -63,8 +63,8 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
     module_regimes: dict[str, str] = {}
 
     for module_key in sorted(evidence_by_module):
-        evidence = evidence_by_module[module_key]
-        for row in evidence:
+        module_evidence = evidence_by_module[module_key]
+        for row in module_evidence:
             score_evidence_rows.append(
                 ScoreEvidence(
                     module_key=row.module_key,
@@ -83,7 +83,7 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
                 )
             )
 
-        score = aggregate_module_score(module_key, evidence)
+        score = aggregate_module_score(module_key, module_evidence)
         winning_thesis = _winning_thesis(score)
         module_score_rows.append(
             ModuleScore(
@@ -94,13 +94,14 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
                 confidence=score.confidence,
                 winning_thesis=winning_thesis,
                 regime=score.regime,
-                explanation=_module_score_explanation(score, evidence),
+                explanation=_module_score_explanation(score, module_evidence),
             )
         )
         module_scores.append(score)
         module_regimes[module_key] = score.regime
 
-        history = session.scalars(
+        history = list(
+            session.scalars(
             select(ModuleScore)
             .where(
                 ModuleScore.module_key == module_key,
@@ -109,6 +110,7 @@ def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipeline
             .order_by(desc(ModuleScore.score_date))
             .limit(2)
         ).all()
+        )
         history.reverse()
         consecutive_history = _consecutive_weekly_history(history, score_date)
 
