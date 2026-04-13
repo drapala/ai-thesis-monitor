@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
+from typing import cast
 
-from sqlalchemy import select
+import struct
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from ai_thesis_monitor.db.models.core import PipelineRun
@@ -21,6 +24,8 @@ class ReplayResult:
 
 
 def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayResult:
+    _acquire_replay_lock(session, "replay_week", start_date, end_date)
+
     start_expr = PipelineRun.inputs.op("->>")("start_date")
     end_expr = PipelineRun.inputs.op("->>")("end_date")
     completed = session.scalar(
@@ -65,3 +70,9 @@ def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayRe
         alerts_written=weekly_result.alerts_written,
         narratives_written=weekly_result.narratives_written,
     )
+
+
+def _acquire_replay_lock(session: Session, run_type: str, start_date: str, end_date: str) -> None:
+    digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
+    lock_id = cast(int, struct.unpack(">q", digest[:8])[0])
+    session.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
