@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import os
-
-from fastapi import APIRouter
-
-from ai_thesis_monitor.app.settings import Settings
+from fastapi import APIRouter, Request
 
 router = APIRouter()
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    settings = Settings.from_env(os.environ)
+def health(request: Request) -> dict[str, str]:
+    settings = request.app.state.settings
     return {"status": "ok", "service": settings.app_name}
