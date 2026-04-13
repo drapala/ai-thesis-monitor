@@ -42,3 +42,20 @@ def fred_client() -> httpx.Client:
         yield client
     finally:
         client.close()
+
+
+@pytest.fixture
+def rss_client() -> httpx.Client:
+    fixture_path = Path(__file__).parent / "fixtures" / "rss" / "labor_claims.xml"
+    body = fixture_path.read_text(encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert str(request.url) == "https://rss.example.test/corporate-ir.xml"
+        return httpx.Response(200, text=body)
+
+    client = httpx.Client(base_url="https://rss.example.test", transport=httpx.MockTransport(handler))
+    try:
+        yield client
+    finally:
+        client.close()
