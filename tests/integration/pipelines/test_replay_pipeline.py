@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session as OrmSession
 
 from ai_thesis_monitor.cli.main import app
-from ai_thesis_monitor.db.models.core import PipelineRun
+from ai_thesis_monitor.db.models.core import PipelineRun, Source
 from ai_thesis_monitor.ops.replay.service import replay_week
 
 REPLAY_START = "2026-03-30"
@@ -74,7 +75,7 @@ def test_replay_week_fast_path_releases_lock(db_session) -> None:
     replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
     second = replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
     assert second.module_scores_written == 0
-    assert not db_session.in_transaction()
+    assert not db_session.in_nested_transaction()
 
 
 def test_replay_week_rejects_invalid_dates(db_session) -> None:
@@ -91,3 +92,30 @@ def test_replay_week_cli_invalid_window(cli_runner, db_session) -> None:
     result = cli_runner.invoke(app, ["replay-week", "invalid", REPLAY_END])
     assert result.exit_code != 0
     assert db_session.scalar(select(func.count()).select_from(PipelineRun)) == 0
+
+
+def test_replay_week_preserves_outer_transaction(db_session) -> None:
+    transaction = db_session.begin()
+    sentinel = Source(
+        source_key="replay_guard",
+        source_name="Replay Guard",
+        source_type="test",
+        base_url="https://example.test",
+        config={"guard": True},
+        reliability_score=0.42,
+        active=True,
+    )
+    db_session.add(sentinel)
+    db_session.flush()
+    sentinel_id = sentinel.id
+
+    try:
+        replay_week(db_session, start_date=REPLAY_START, end_date=REPLAY_END)
+
+        other_session = OrmSession(db_session.get_bind())
+        try:
+            assert other_session.get(Source, sentinel_id) is None
+        finally:
+            other_session.close()
+    finally:
+        transaction.rollback()

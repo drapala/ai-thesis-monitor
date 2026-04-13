@@ -15,6 +15,12 @@ Invoke the Typer CLI through `uv run ai-thesis-monitor version` to print the cur
 
 ## Core commands
 
+Apply the database migrations/schema before running these commands:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run alembic upgrade head
+```
+
 ```bash
 uv run python -m ai_thesis_monitor.cli.main seed-reference-data
 uv run python -m ai_thesis_monitor.cli.main run-daily

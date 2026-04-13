@@ -25,47 +25,54 @@ class ReplayResult:
 
 def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayResult:
     _validate_date_window(start_date, end_date)
-    _acquire_replay_lock(session, "replay_week", start_date, end_date)
+    lock_id = _compute_replay_lock_id("replay_week", start_date, end_date)
+    lock_acquired = False
+    weekly_result = None
 
     start_expr = PipelineRun.inputs.op("->>")("start_date")
     end_expr = PipelineRun.inputs.op("->>")("end_date")
-    completed = session.scalar(
-        select(PipelineRun).where(
-            PipelineRun.run_type == "replay_week",
-            PipelineRun.status == "completed",
-            start_expr == start_date,
-            end_expr == end_date,
-        )
-    )
-    if completed is not None:
-        session.rollback()
-        return ReplayResult(0, 0, 0, 0)
-
-    run = PipelineRun(
-        run_type="replay_week",
-        status="running",
-        triggered_by="cli",
-        inputs={"start_date": start_date, "end_date": end_date},
-        outputs_summary={},
-        error_summary=None,
-    )
-    session.add(run)
-    session.flush()
 
     try:
-        weekly_result = run_weekly_pipeline(
-            module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
-            critical_claims={"labor": []},
+        _acquire_replay_lock(session, lock_id)
+        lock_acquired = True
+
+        completed = session.scalar(
+            select(PipelineRun).where(
+                PipelineRun.run_type == "replay_week",
+                PipelineRun.status == "completed",
+                start_expr == start_date,
+                end_expr == end_date,
+            )
         )
-    except Exception:
-        session.rollback()
-        raise
+        if completed is not None:
+            return ReplayResult(0, 0, 0, 0)
 
-    run.outputs_summary = {"mode": "replay"}
-    run.status = "completed"
-    run.finished_at = datetime.now(timezone.utc)
-    session.commit()
+        with session.begin_nested():
+            run = PipelineRun(
+                run_type="replay_week",
+                status="running",
+                triggered_by="cli",
+                inputs={"start_date": start_date, "end_date": end_date},
+                outputs_summary={},
+                error_summary=None,
+            )
+            session.add(run)
+            session.flush()
 
+            weekly_result = run_weekly_pipeline(
+                module_histories={"labor": ["leaning_citrini", "strong_citrini"]},
+                critical_claims={"labor": []},
+            )
+
+            run.outputs_summary = {"mode": "replay"}
+            run.status = "completed"
+            run.finished_at = datetime.now(timezone.utc)
+
+    finally:
+        if lock_acquired:
+            _release_replay_lock(session, lock_id)
+
+    assert weekly_result is not None
     return ReplayResult(
         module_scores_written=weekly_result.module_scores_written,
         tripwires_written=weekly_result.tripwires_written,
@@ -74,10 +81,17 @@ def replay_week(session: Session, *, start_date: str, end_date: str) -> ReplayRe
     )
 
 
-def _acquire_replay_lock(session: Session, run_type: str, start_date: str, end_date: str) -> None:
+def _compute_replay_lock_id(run_type: str, start_date: str, end_date: str) -> int:
     digest = sha256(f"{run_type}|{start_date}|{end_date}".encode("utf-8")).digest()
-    lock_id = cast(int, struct.unpack(">q", digest[:8])[0])
-    session.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+    return cast(int, struct.unpack(">q", digest[:8])[0])
+
+
+def _acquire_replay_lock(session: Session, lock_id: int) -> None:
+    session.execute(text("SELECT pg_advisory_lock(:lock_id)"), {"lock_id": lock_id})
+
+
+def _release_replay_lock(session: Session, lock_id: int) -> None:
+    session.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": lock_id})
 
 
 def _validate_date_window(start_date: str, end_date: str) -> None:
