@@ -1,33 +1,191 @@
 # AI Thesis Monitor
 
-Minimal runtime and CLI orchestrator for monitoring AI thesis deployments.
+`ai-thesis-monitor` is a headless, hypothesis-first observability system for testing two competing macro theses about AI in the US economy. It ingests public structured data and public text sources, converts them into auditable evidence, and materializes weekly scores, tripwires, alerts, and narrative snapshots.
 
-## Local setup
+This is not a passive dashboard project. The goal is to answer, repeatedly and explicitly:
 
-1. Start the local PostgreSQL service: `docker compose up -d postgres`
+1. Which thesis is gaining strength now?
+2. In which causal module is that happening?
+3. Is the move noise or regime?
+4. Which evidence changed the system's belief?
+
+## The Two Theses
+
+- `citadel`: AI adoption grows, but institutional friction, integration cost, regulation, and human complementarity limit near-term macro damage.
+- `citrini`: AI adoption grows fast enough to compress white-collar labor demand and income, weaken demand, erode intermediation rents, and eventually leak into credit and housing stress.
+
+The system keeps both theses alive in parallel. It does not collapse the world into one opaque score.
+
+## What It Analyzes
+
+The V1 system evaluates six causal modules:
+
+| Module | What it asks | Example signals |
+| --- | --- | --- |
+| `diffusion` | Is AI spreading fast enough to matter economically? | adoption rates, rollout intensity, hours saved |
+| `productivity` | Is AI increasing output per worker or reducing hours per unit of output? | labor productivity, revenue per employee |
+| `labor` | Is productivity showing up as complement or substitution? | exposed job postings, layoffs, unemployment |
+| `demand` | Is labor compression leaking into consumption? | discretionary spending, travel, restaurant spend, savings |
+| `intermediation` | Are friction-based or SaaS-like business models losing pricing power? | renewal discounts, build-vs-buy mentions, take-rate pressure |
+| `credit_housing` | Is the shock spreading into household balance sheets and housing? | delinquencies, HELOC draws, revolving balances, home prices |
+
+V1 is intentionally narrow:
+
+- `US-only`
+- public data only
+- headless only
+- no dashboard
+- structured plus textual evidence from day 1
+
+## How Analysis Works
+
+The system turns external observations into auditable analytical outputs through a fixed pipeline:
+
+1. `ingest`: fetch public structured series and public text sources into raw landing tables.
+2. `parse`: normalize structured payloads into canonical metric points.
+3. `extract claims`: convert relevant text into bounded, reviewable claims.
+4. `build features`: derive trends, acceleration, baseline deviation, and other scoring inputs.
+5. `score`: accumulate evidence separately for `citadel` and `citrini` by module.
+6. `detect tripwires`: detect discrete regime-relevant events that deserve escalation.
+7. `build narrative`: summarize what changed, where it changed, and what remains unconfirmed.
+
+Three design rules matter:
+
+- Every score must be traceable back to explicit evidence rows in Postgres.
+- Text is assistive but bounded. Claims can influence a module, but they do not act as an unconstrained final judge.
+- Tripwires are separate from routine scoring. They represent event-like jumps in belief, not ordinary weekly drift.
+
+## What the System Produces
+
+The repo persists five main analytical outputs:
+
+- `score_evidence`: the metric- and claim-level contributions behind a weekly score
+- `module_scores`: weekly dual scores for `citadel` and `citrini`, plus confidence and regime
+- `tripwire_events`: discrete high-importance events such as persistent deterioration or critical claims
+- `alerts`: the operational notification surface generated from tripwires
+- `narrative_snapshots`: a human-readable weekly summary of the current analytical state
+
+The intended weekly output is not just a number. It is an explainable snapshot of which thesis leads, why it leads, and what still has not been confirmed.
+
+## Runtime Model
+
+The repository is organized around five surfaces:
+
+- `api`: FastAPI read and admin routes
+- `cli`: explicit job entrypoints
+- `domain`: pure scoring, tripwire, and narrative logic
+- `ingestion`: adapters, parsers, and pipelines for structured and textual evidence
+- `db` and `ops`: persistence, seeds, run tracking, and replay controls
+
+Postgres is the source of truth. The system is designed for deterministic jobs, explicit run state, replay, and recomputation. V1 intentionally avoids queues, brokers, vector databases, and heavyweight orchestration.
+
+## API Surface
+
+The current FastAPI app exposes:
+
+- `GET /health`
+- `GET /scores/latest`
+- `GET /alerts`
+- `GET /narratives/latest`
+- `GET /reviews/claims`
+- `POST /reviews/claims/{claim_id}`
+- `POST /admin/jobs/{job_name}`
+
+The API is read-heavy and administrative. Analytical logic lives in domain and pipeline code, not in route handlers.
+
+## Local Setup
+
+1. Start Postgres: `docker compose up -d postgres`
 2. Sync dependencies: `uv sync --extra dev`
-3. Run the CLI smoke test: `uv run pytest tests/unit/test_cli_smoke.py -v`
-
-## CLI
-
-Invoke the Typer CLI through `uv run ai-thesis-monitor version` to print the current
-`0.1.0` release string.
-
-## Core commands
-
-Apply the database migrations/schema before running these commands:
+3. Apply migrations:
 
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run alembic upgrade head
 ```
 
+4. Seed reference data:
+
 ```bash
-uv run python -m ai_thesis_monitor.cli.main seed-reference-data
-uv run python -m ai_thesis_monitor.cli.main run-daily
-uv run python -m ai_thesis_monitor.cli.main run-weekly
-uv run python -m ai_thesis_monitor.cli.main replay-week 2026-03-30 2026-04-06
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-reference-data
 ```
 
-## Database
+5. Run the test suite if you want a clean local verification pass:
 
-Postgres 16 runs inside `docker compose` and is wired up on port `54321`.
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run pytest -v
+uv run ruff check .
+uv run mypy src
+```
+
+6. Start the API if you want to inspect the read/admin surface locally:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run uvicorn ai_thesis_monitor.api.app:create_app --factory --reload
+```
+
+Postgres 16 is provided by `compose.yaml` and is exposed locally on port `54321`.
+
+## CLI and Operational Commands
+
+Print the installed version:
+
+```bash
+uv run ai-thesis-monitor version
+```
+
+Seed reference metadata:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-reference-data
+```
+
+Reserved daily and weekly job entrypoints:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main run-daily
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main run-weekly
+```
+
+Replay a weekly window and rematerialize weekly outputs:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main replay-week 2026-03-30 2026-04-06
+```
+
+`replay-week` is the deterministic operational path that exercises weekly materialization against persisted evidence for a specific window.
+
+## Repository Shape
+
+```text
+ai-thesis-monitor/
+  alembic/
+  docs/
+  src/ai_thesis_monitor/
+    api/
+    app/
+    cli/
+    db/
+    domain/
+    ingestion/
+    ops/
+  tests/
+```
+
+The main architectural rule is separation of concerns:
+
+- domain code should be understandable without reading transport or ORM code
+- ingestion code should convert external material into internal artifacts
+- persistence code should store and retrieve state, not decide analytical outcomes
+
+## MVP Boundaries
+
+The current V1 contract is:
+
+- public sources only
+- US-only scope
+- headless execution
+- no end-user dashboard
+- no end-to-end black-box scoring
+- lightweight human review for important textual evidence
+
+If you want the deeper design rationale, read [`docs/superpowers/specs/2026-04-13-ai-thesis-monitor-v1-design.md`](docs/superpowers/specs/2026-04-13-ai-thesis-monitor-v1-design.md).
