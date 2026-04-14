@@ -1,6 +1,37 @@
 # AI Thesis Monitor
 
-`ai-thesis-monitor` is a headless, hypothesis-first observability system for testing two competing macro theses about AI in the US economy. It ingests public structured data and public text sources, converts them into auditable evidence, and materializes weekly scores, tripwires, alerts, and narrative snapshots.
+## Executive Summary
+
+Every week, the AI economy seems to tell two stories at once. In one, productivity is finally breaking loose: models improve, companies ship agents, costs fall, and more work gets done with less friction. In the other, the same signals look more ominous: hiring softens, white-collar tasks get cheaper, and what looks like efficiency at the firm level starts to threaten labor income, demand, and eventually credit. Both stories sound plausible. Most commentary chooses one too early.
+
+`ai-thesis-monitor` exists to sit in that gap. It is a headless system for tracking two competing stories about AI in the US economy and forcing them to compete on observable evidence rather than mood. One story says AI behaves mostly like a messy but valuable productivity tool, slowed by institutions, integration costs, regulation, and the stubborn fact that organizations do not change overnight. The other says the pace is finally fast enough to matter where macro pain actually lives: white-collar labor, household income, demand, and eventually housing and credit.
+
+The project does not try to predict "the future of AI" in the abstract. It asks a narrower and more useful question: which thesis is gaining strength now, through which causal channel, and because of what new evidence? To answer that, it ingests public macro series, labor signals, corporate text, and financial stress indicators, turns them into auditable evidence, and scores six causal modules instead of collapsing everything into one opaque number.
+
+The result is closer to a weekly macro notebook than a dashboard. It records what changed, what merely got louder, what crossed from noise into regime, and what still has not been confirmed.
+
+```text
+How to read a week
+------------------
+public data + public text
+          |
+          v
+   evidence by module
+          |
+          +--> citadel strength
+          +--> citrini strength
+          |
+          v
+ tripwires, alerts, weekly narrative
+```
+
+```text
+Example weekly snapshot
+-----------------------
+Leader        citadel
+Shift         productivity improved; labor weakened but not broadly enough to confirm regime change
+Unconfirmed   no decisive spillover yet into demand, credit, or housing
+```
 
 This is not a passive dashboard project. The goal is to answer, repeatedly and explicitly:
 

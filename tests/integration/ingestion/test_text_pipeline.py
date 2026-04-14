@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from ai_thesis_monitor.db.models.analytics import Claim
+from ai_thesis_monitor.db.models.analytics import Claim, MetricFeature, NormalizedMetric
 from ai_thesis_monitor.db.models.core import Document, DocumentChunk, RawObservation, Source
 from ai_thesis_monitor.domain.claims.extract import extract_claims
 from ai_thesis_monitor.ingestion.pipelines.text import run_text_pipeline
@@ -16,6 +16,8 @@ def clean_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
+    db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(Source))
     db_session.commit()
@@ -23,6 +25,8 @@ def clean_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
+    db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(Source))
     db_session.commit()
@@ -95,12 +99,51 @@ def test_text_pipeline_distinct_items_same_description_create_distinct_claims(db
     assert claim_count == 2
 
 
+def test_text_pipeline_truncates_long_external_links_for_raw_observation(db_session: Session) -> None:
+    source = _seed_rss_source(db_session, base_url="https://rss.example.test/long-link.xml")
+    long_link = "https://example.com/" + ("a" * 400)
+    xml = f"""
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Company reduces workforce while increasing AI investment</title>
+      <link>{long_link}</link>
+      <description>Company said it would reduce workforce and invest more in AI efficiency programs.</description>
+      <pubDate>Mon, 13 Apr 2026 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
+""".strip()
+    client = _rss_client(xml, expected_url=source.base_url)
+    try:
+        result = run_text_pipeline(db_session, client=client, source_keys=["rss_corporate_ir"])
+    finally:
+        client.close()
+
+    raw_observation = db_session.scalar(select(RawObservation))
+
+    assert result.raw_observations == 1
+    assert raw_observation is not None
+    assert raw_observation.external_id == long_link[:255]
+
+
 def test_extract_claims_requires_ai_word_boundary() -> None:
     claims = extract_claims(
         title="Company announces layoffs",
         text="The company said it would layoff 100 workers",
     )
     assert claims == []
+
+
+def test_extract_claims_supports_ai_variants_and_workforce_cut_language() -> None:
+    claims = extract_claims(
+        title="Block cuts 40% of its work force because of A.I.",
+        text="The company said artificial intelligence efficiency is driving job cuts.",
+    )
+
+    assert len(claims) == 1
+    assert claims[0].module_key == "labor"
+    assert claims[0].claim_type == "headcount_reduction_ai_efficiency"
 
 
 def _seed_rss_source(db_session: Session, *, base_url: str = "https://rss.example.test/corporate-ir.xml") -> Source:

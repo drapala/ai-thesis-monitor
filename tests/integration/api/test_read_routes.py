@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ai_thesis_monitor.api.app import create_app
-from ai_thesis_monitor.db.models.analytics import Alert, Claim, ModuleScore, NarrativeSnapshot, NormalizedMetric
+from ai_thesis_monitor.db.models.analytics import Alert, Claim, MetricFeature, ModuleScore, NarrativeSnapshot, NormalizedMetric
 from ai_thesis_monitor.db.models.core import (
     Document,
     DocumentChunk,
@@ -31,6 +31,7 @@ def clean_api_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
@@ -45,6 +46,7 @@ def clean_api_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))

@@ -19,13 +19,16 @@ class ExtractedClaim:
     review_status: str
 
 
-_AI_WORD_RE = re.compile(r"\bai\b")
+_AI_WORD_RE = re.compile(r"\b(?:ai|a\.i\.|artificial intelligence)\b")
+_LABOR_CUT_RE = re.compile(
+    r"\b(?:layoff|layoffs|laying off|job cuts|cut jobs|cuts? .*work force|cuts? .*workforce|reduce workforce)\b"
+)
 
 
 def extract_claims(*, title: str, text: str) -> list[ExtractedClaim]:
     normalized = f"{title} {text}".lower()
 
-    if _AI_WORD_RE.search(normalized) and ("layoff" in normalized or "reduce workforce" in normalized):
+    if _AI_WORD_RE.search(normalized) and _LABOR_CUT_RE.search(normalized):
         return [
             ExtractedClaim(
                 module_key="labor",

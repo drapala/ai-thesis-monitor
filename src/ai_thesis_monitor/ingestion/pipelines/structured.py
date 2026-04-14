@@ -14,7 +14,8 @@ from ai_thesis_monitor.app.settings import Settings
 from ai_thesis_monitor.db.models.analytics import NormalizedMetric
 from ai_thesis_monitor.db.models.core import MetricDefinition, RawObservation, Source
 from ai_thesis_monitor.ingestion.adapters.fred import FredCsvAdapter
-from ai_thesis_monitor.ingestion.parsers.structured import FredParsedRow, parse_fred_rows
+from ai_thesis_monitor.ingestion.pipelines.features import run_feature_pipeline
+from ai_thesis_monitor.ingestion.parsers.structured import parse_fred_rows
 
 
 @dataclass(frozen=True)
@@ -62,41 +63,37 @@ def run_structured_pipeline(
             db_session.flush()
             raw_count += 1
 
-        latest_row = _latest_row(parse_fred_rows(rows))
-        if latest_row is None:
+        parsed_rows = parse_fred_rows(rows)
+        if not parsed_rows:
             continue
 
-        normalized_metric = db_session.scalar(
-            select(NormalizedMetric).where(
-                NormalizedMetric.metric_definition_id == definition.id,
-                NormalizedMetric.source_id == source.id,
-                NormalizedMetric.observed_date == latest_row["observed_date"],
-                NormalizedMetric.geo.is_(None),
-                NormalizedMetric.segment.is_(None),
+        for parsed_row in parsed_rows:
+            normalized_metric = db_session.scalar(
+                select(NormalizedMetric).where(
+                    NormalizedMetric.metric_definition_id == definition.id,
+                    NormalizedMetric.source_id == source.id,
+                    NormalizedMetric.observed_date == parsed_row["observed_date"],
+                    NormalizedMetric.geo.is_(None),
+                    NormalizedMetric.segment.is_(None),
+                )
             )
-        )
-        if normalized_metric is None:
-            normalized_metric = NormalizedMetric(
-                metric_definition_id=definition.id,
-                source_id=source.id,
-                raw_observation_id=raw_observation.id,
-                observed_date=latest_row["observed_date"],
-                value=latest_row["value"],
-            )
-            db_session.add(normalized_metric)
-        else:
-            normalized_metric.raw_observation_id = raw_observation.id
-            normalized_metric.value = latest_row["value"]
-        metric_count += 1
+            if normalized_metric is None:
+                normalized_metric = NormalizedMetric(
+                    metric_definition_id=definition.id,
+                    source_id=source.id,
+                    raw_observation_id=raw_observation.id,
+                    observed_date=parsed_row["observed_date"],
+                    value=parsed_row["value"],
+                )
+                db_session.add(normalized_metric)
+            else:
+                normalized_metric.raw_observation_id = raw_observation.id
+                normalized_metric.value = parsed_row["value"]
+            metric_count += 1
 
+    run_feature_pipeline(db_session, metric_keys=metric_keys)
     db_session.commit()
     return StructuredPipelineResult(raw_observations=raw_count, normalized_metrics=metric_count)
-
-
-def _latest_row(rows: list[FredParsedRow]) -> FredParsedRow | None:
-    if not rows:
-        return None
-    return max(rows, key=lambda row: row["observed_date"])
 
 
 def _payload_hash(payload: dict) -> str:

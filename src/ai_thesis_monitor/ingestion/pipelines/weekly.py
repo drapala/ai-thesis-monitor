@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ai_thesis_monitor.db.models.analytics import (
     Alert,
     Claim,
+    MetricFeature,
     ModuleScore,
     NarrativeSnapshot,
     NormalizedMetric,
@@ -23,6 +24,7 @@ from ai_thesis_monitor.domain.narratives.build import build_weekly_summary
 from ai_thesis_monitor.domain.scoring.aggregation import ModuleScoreResult, aggregate_module_score
 from ai_thesis_monitor.domain.scoring.evidence import EvidenceRecord
 from ai_thesis_monitor.domain.tripwires.detect import TripwireResult, detect_tripwires
+from ai_thesis_monitor.ingestion.pipelines.features import run_feature_pipeline
 
 THREE_DECIMALS = Decimal("0.001")
 OPEN_QUESTION_REVIEW_STATUSES = {"pending_review"}
@@ -39,6 +41,7 @@ class WeeklyPipelineResult:
 
 
 def run_weekly_pipeline(*, session: Session, score_date: date) -> WeeklyPipelineResult:
+    run_feature_pipeline(session, observed_date_lte=score_date)
     _clear_score_date_materializations(session, score_date)
 
     claims_window_start = score_date - timedelta(days=6)
@@ -211,8 +214,9 @@ def _clear_score_date_materializations(session: Session, score_date: date) -> No
 
 def _load_metric_evidence(session: Session, score_date: date) -> list[EvidenceRecord]:
     metric_rows = session.execute(
-        select(NormalizedMetric, MetricDefinition)
+        select(NormalizedMetric, MetricDefinition, MetricFeature)
         .join(MetricDefinition, MetricDefinition.id == NormalizedMetric.metric_definition_id)
+        .outerjoin(MetricFeature, MetricFeature.normalized_metric_id == NormalizedMetric.id)
         .where(
             NormalizedMetric.observed_date <= score_date,
             MetricDefinition.is_active.is_(True),
@@ -227,14 +231,16 @@ def _load_metric_evidence(session: Session, score_date: date) -> list[EvidenceRe
         )
     ).all()
 
-    latest_rows: dict[tuple[int, int, str | None, str | None], tuple[NormalizedMetric, MetricDefinition]] = {}
-    for metric, definition in metric_rows:
+    latest_rows: dict[
+        tuple[int, int, str | None, str | None], tuple[NormalizedMetric, MetricDefinition, MetricFeature | None]
+    ] = {}
+    for metric, definition, feature in metric_rows:
         semantic_key = (metric.metric_definition_id, metric.source_id, metric.geo, metric.segment)
-        latest_rows.setdefault(semantic_key, (metric, definition))
+        latest_rows.setdefault(semantic_key, (metric, definition, feature))
 
     evidence: list[EvidenceRecord] = []
-    for metric, definition in latest_rows.values():
-        row = _metric_to_evidence(metric, definition)
+    for metric, definition, feature in latest_rows.values():
+        row = _metric_to_evidence(metric, definition, feature)
         if row is not None:
             evidence.append(row)
     return evidence
@@ -254,14 +260,25 @@ def _load_claim_rows(session: Session, window_start: date, score_date: date) -> 
 
 
 def _metric_to_evidence(
-    metric: NormalizedMetric, definition: MetricDefinition
+    metric: NormalizedMetric, definition: MetricDefinition, feature: MetricFeature | None
 ) -> EvidenceRecord | None:
-    value = Decimal(metric.value)
-    strength = min(abs(value), Decimal("1.000"))
-    if strength == 0:
+    feature_payload = feature.feature_payload if feature is not None else {}
+    history_points = int(feature_payload.get("history_points", 0) or 0)
+    if history_points < definition.min_history_points:
         return None
 
-    direction = _metric_direction(value=value, expected_direction_citadel=definition.expected_direction_citadel)
+    feature_key = definition.primary_feature_key
+    feature_value = feature_payload.get(feature_key)
+    scalar = _feature_scalar(feature_value)
+    strength = _feature_strength(feature_payload, feature_key, scalar)
+    if definition.signal_transform != "adoption_only" and strength == 0:
+        return None
+
+    direction = _metric_direction_from_transform(
+        scalar=scalar,
+        signal_transform=definition.signal_transform,
+        expected_direction_citadel=definition.expected_direction_citadel,
+    )
     impact = Decimal("1.000")
     weight = _quantize(Decimal(str(definition.weight)))
     quality = _quantize(Decimal(metric.quality_score))
@@ -269,30 +286,38 @@ def _metric_to_evidence(
     contribution_citadel = Decimal("0.000")
     contribution_citrini = Decimal("0.000")
 
-    if direction == "citadel":
+    if definition.signal_transform == "adoption_only":
+        half_contribution = _quantize(contribution / Decimal("2"))
+        contribution_citadel = half_contribution
+        contribution_citrini = half_contribution
+    elif direction == "citadel":
         contribution_citadel = contribution
     elif direction == "citrini":
         contribution_citrini = contribution
+
+    references = {
+        "normalized_metric_id": str(metric.id),
+        "metric_definition_id": str(definition.id),
+    }
+    if feature is not None:
+        references["metric_feature_id"] = str(feature.id)
 
     return EvidenceRecord(
         module_key=definition.module_key,
         evidence_type="metric",
         bucket_key=definition.metric_key,
         direction=direction,
-        strength=_quantize(strength),
+        strength=strength,
         impact=impact,
         weight=weight,
         quality=quality,
         contribution_citadel=contribution_citadel,
         contribution_citrini=contribution_citrini,
         explanation=(
-            f"{definition.metric_key} recorded {value} on {metric.observed_date.isoformat()} "
+            f"{definition.metric_key} using {feature_key}={feature_value} on {metric.observed_date.isoformat()} "
             f"for module {definition.module_key}"
         ),
-        references={
-            "normalized_metric_id": str(metric.id),
-            "metric_definition_id": str(definition.id),
-        },
+        references=references,
     )
 
 
@@ -331,15 +356,60 @@ def _claim_evidence_weight(review_status: str) -> Decimal:
     return Decimal("1.000")
 
 
-def _metric_direction(*, value: Decimal, expected_direction_citadel: str) -> str:
-    if value == 0 or expected_direction_citadel == "neutral":
-        return "neutral"
-    if expected_direction_citadel not in {"up", "down"}:
+def _metric_direction_from_transform(
+    *,
+    scalar: Decimal,
+    signal_transform: str,
+    expected_direction_citadel: str,
+) -> str:
+    if scalar == 0:
         return "neutral"
 
-    if value > 0:
+    if signal_transform == "adoption_only":
+        return "balanced"
+
+    if signal_transform in {"identity", "higher_is_citadel", "lower_is_citrini"}:
+        return "citadel" if scalar > 0 else "citrini"
+
+    if signal_transform in {"higher_is_citrini", "lower_is_citadel"}:
+        return "citrini" if scalar > 0 else "citadel"
+
+    if expected_direction_citadel not in {"up", "down"}:
+        return "neutral"
+    return _metric_direction_from_expectation(scalar=scalar, expected_direction_citadel=expected_direction_citadel)
+
+
+def _metric_direction_from_expectation(*, scalar: Decimal, expected_direction_citadel: str) -> str:
+    if scalar > 0:
         return "citadel" if expected_direction_citadel == "up" else "citrini"
     return "citadel" if expected_direction_citadel == "down" else "citrini"
+
+
+def _feature_scalar(value: object) -> Decimal:
+    if value is None:
+        return Decimal("0.000")
+    if isinstance(value, str):
+        if value == "improving":
+            return Decimal("1.000")
+        if value == "deteriorating":
+            return Decimal("-1.000")
+        if value in {"flat", ""}:
+            return Decimal("0.000")
+        try:
+            return _quantize(Decimal(value))
+        except Exception:
+            return Decimal("0.000")
+    if isinstance(value, (int, float, Decimal)):
+        return _quantize(Decimal(str(value)))
+    return Decimal("0.000")
+
+
+def _feature_strength(feature_payload: dict[str, object], feature_key: str, scalar: Decimal) -> Decimal:
+    signal_key = f"{feature_key}_signal"
+    signal_value = feature_payload.get(signal_key)
+    if signal_value is not None:
+        return min(abs(_feature_scalar(signal_value)), Decimal("1.000"))
+    return min(abs(scalar), Decimal("1.000"))
 
 
 def _claim_effective_date(claim: Claim) -> date | None:

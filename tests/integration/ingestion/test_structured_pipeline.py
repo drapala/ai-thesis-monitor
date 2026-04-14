@@ -9,18 +9,26 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ai_thesis_monitor.ingestion.pipelines.structured import run_structured_pipeline
-from ai_thesis_monitor.db.models.analytics import NormalizedMetric
-from ai_thesis_monitor.db.models.core import MetricDefinition, RawObservation, Source
+from ai_thesis_monitor.db.models.analytics import Claim, MetricFeature, NormalizedMetric
+from ai_thesis_monitor.db.models.core import Document, DocumentChunk, MetricDefinition, RawObservation, Source
 
 
 @pytest.fixture(autouse=True)
 def clean_tables(db_session: Session) -> None:
+    db_session.execute(delete(Claim))
+    db_session.execute(delete(DocumentChunk))
+    db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
     db_session.execute(delete(Source))
     db_session.commit()
     yield
+    db_session.execute(delete(Claim))
+    db_session.execute(delete(DocumentChunk))
+    db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
@@ -80,6 +88,12 @@ def test_run_structured_pipeline_persists_latest_fred_metric(
     )
     assert normalized is not None
     assert normalized.value == Decimal("4.1")
+    feature = db_session.scalar(
+        select(MetricFeature).where(MetricFeature.normalized_metric_id == normalized.id)
+    )
+    assert feature is not None
+    assert feature.feature_key == "level"
+    assert feature.feature_payload["history_points"] == 1
 
 
 def test_run_structured_pipeline_replay_identical_payload_is_idempotent(
@@ -166,6 +180,60 @@ def test_run_structured_pipeline_revised_payload_updates_semantic_metric_row(
     assert latest_raw is not None
     assert normalized.value == Decimal("4.2")
     assert normalized.raw_observation_id == latest_raw.id
+
+
+def test_run_structured_pipeline_persists_full_series_history_for_feature_derivation(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, definition = _seed_fred_metric(db_session)
+    monkeypatch.setenv("FRED_BASE_URL", "https://fred.example.test")
+
+    payload = "\n".join(
+        [
+            "observation_date,UNRATE",
+            "2026-01-01,4.0",
+            "2026-02-01,4.1",
+            "2026-03-01,4.2",
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/graph/fredgraph.csv"
+        assert request.url.params.get("id") == "UNRATE"
+        return httpx.Response(200, text=payload)
+
+    client = httpx.Client(base_url="https://fred.example.test", transport=httpx.MockTransport(handler))
+    try:
+        result = run_structured_pipeline(
+            db_session,
+            client=client,
+            metric_keys=["unemployment_rate_professional_services"],
+        )
+    finally:
+        client.close()
+
+    metrics = db_session.scalars(
+        select(NormalizedMetric)
+        .where(
+            NormalizedMetric.metric_definition_id == definition.id,
+            NormalizedMetric.source_id == source.id,
+        )
+        .order_by(NormalizedMetric.observed_date.asc())
+    ).all()
+    latest_metric = metrics[-1]
+    latest_feature = db_session.scalar(
+        select(MetricFeature).where(MetricFeature.normalized_metric_id == latest_metric.id)
+    )
+
+    assert result.normalized_metrics == 3
+    assert [metric.observed_date for metric in metrics] == [
+        date(2026, 1, 1),
+        date(2026, 2, 1),
+        date(2026, 3, 1),
+    ]
+    assert latest_feature is not None
+    assert latest_feature.feature_payload["history_points"] == 3
 
 
 def _seed_fred_metric(db_session: Session) -> tuple[Source, MetricDefinition]:

@@ -27,3 +27,31 @@ def test_build_feature_payload_steady_series_acceleration_flat() -> None:
     payload = build_feature_payload(series=steady_series)
     assert payload["trend_4w"] == "deteriorating"
     assert payload["acceleration"] == "flat"
+
+
+def test_build_feature_payload_computes_monthly_yoy_and_signal() -> None:
+    payload = build_feature_payload(
+        series=[Decimal("100")] * 12 + [Decimal("110")],
+        frequency="monthly",
+    )
+
+    assert payload["yoy"] == Decimal("0.100")
+    assert payload["yoy_signal"] == Decimal("1.000")
+
+
+def test_build_feature_payload_computes_level_deviation_and_signal() -> None:
+    payload = build_feature_payload(
+        series=[
+            Decimal("100"),
+            Decimal("102"),
+            Decimal("98"),
+            Decimal("100"),
+            Decimal("101"),
+            Decimal("99"),
+            Decimal("110"),
+        ],
+        frequency="monthly",
+    )
+
+    assert payload["level"] > Decimal("0")
+    assert payload["level_signal"] == Decimal("1.000")

@@ -49,7 +49,7 @@ def run_text_pipeline(session: Session, *, client: httpx.Client, source_keys: li
             if raw_observation is None:
                 raw_observation = RawObservation(
                     source_id=source.id,
-                    external_id=item.get("link") or None,
+                    external_id=_truncate_external_id(item.get("link")),
                     payload=payload,
                     content_hash=content_hash,
                     published_at=_parse_pub_date(item.get("pubDate", "")),
@@ -138,3 +138,9 @@ def _parse_pub_date(value: str) -> datetime | None:
         return parsedate_to_datetime(value)
     except (TypeError, ValueError):
         return None
+
+
+def _truncate_external_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value[:255]

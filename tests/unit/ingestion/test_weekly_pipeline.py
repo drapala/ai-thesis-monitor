@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, Session as OrmSession
 from ai_thesis_monitor.db.models.analytics import (
     Alert,
     Claim,
+    MetricFeature,
     ModuleScore,
     NarrativeSnapshot,
     NormalizedMetric,
@@ -30,6 +31,7 @@ def clean_weekly_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
@@ -44,6 +46,7 @@ def clean_weekly_tables(db_session: Session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
@@ -242,6 +245,94 @@ def test_run_weekly_pipeline_reduces_pending_review_claim_weight_vs_approved(db_
     assert pending_weight == Decimal("0.500")
     assert approved_claim_evidence.weight == Decimal("1.000")
     assert approved_module_score.score_citrini > pending_score_citrini
+
+
+def test_run_weekly_pipeline_uses_primary_feature_instead_of_raw_level(db_session: Session) -> None:
+    score_date = date(2026, 4, 6)
+    source = Source(
+        source_key="weekly_productivity_source",
+        source_name="Weekly Productivity Source",
+        source_type="test",
+        base_url="https://example.test/productivity",
+        config={},
+        reliability_score=0.90,
+        active=True,
+    )
+    metric_definition = MetricDefinition(
+        metric_key="labor_productivity_yoy",
+        module_key="productivity",
+        name="Labor Productivity YoY",
+        description="Synthetic quarterly productivity series",
+        frequency="quarterly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=1.2,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="yoy",
+        signal_transform="higher_is_citadel",
+        min_history_points=4,
+        is_leading=False,
+        config={},
+        is_active=True,
+    )
+    db_session.add(source)
+    db_session.add(metric_definition)
+    db_session.flush()
+
+    quarterly_values = [
+        (date(2025, 4, 1), Decimal("100.0")),
+        (date(2025, 7, 1), Decimal("102.0")),
+        (date(2025, 10, 1), Decimal("101.0")),
+        (date(2026, 1, 1), Decimal("100.0")),
+        (score_date, Decimal("95.0")),
+    ]
+
+    for index, (observed_date, value) in enumerate(quarterly_values, start=1):
+        raw_observation = RawObservation(
+            source_id=source.id,
+            external_id=f"productivity-{index}",
+            payload={"observed_date": observed_date.isoformat(), "value": str(value)},
+            content_hash=f"productivity-{index}",
+            published_at=datetime.combine(observed_date, datetime.min.time(), tzinfo=timezone.utc),
+        )
+        db_session.add(raw_observation)
+        db_session.flush()
+        db_session.add(
+            NormalizedMetric(
+                metric_definition_id=metric_definition.id,
+                source_id=source.id,
+                raw_observation_id=raw_observation.id,
+                observed_date=observed_date,
+                value=value,
+                quality_score=Decimal("0.900"),
+            )
+        )
+    db_session.commit()
+
+    result = run_weekly_pipeline(session=db_session, score_date=score_date)
+
+    assert result.module_scores_written >= 1
+    module_score = db_session.scalar(
+        select(ModuleScore).where(
+            ModuleScore.score_date == score_date,
+            ModuleScore.module_key == "productivity",
+        )
+    )
+    assert module_score is not None
+    assert module_score.module_key == "productivity"
+    assert module_score.winning_thesis == "citrini"
+
+    score_evidence = db_session.scalar(
+        select(ScoreEvidence).where(
+            ScoreEvidence.score_date == score_date,
+            ScoreEvidence.module_key == "productivity",
+        )
+    )
+    assert score_evidence is not None
+    assert score_evidence.bucket_key == "labor_productivity_yoy"
+    assert score_evidence.direction == "citrini"
+    assert "using yoy" in score_evidence.explanation
 
 
 def _seed_weekly_inputs(db_session: Session, *, score_date: date) -> None:

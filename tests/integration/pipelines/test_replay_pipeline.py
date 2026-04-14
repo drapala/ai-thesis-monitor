@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session as OrmSession
 from ai_thesis_monitor.db.models.analytics import (
     Alert,
     Claim,
+    MetricFeature,
     ModuleScore,
     NarrativeSnapshot,
     NormalizedMetric,
@@ -63,6 +64,7 @@ def clear_pipeline_runs(db_session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
@@ -78,6 +80,7 @@ def clear_pipeline_runs(db_session) -> None:
     db_session.execute(delete(Claim))
     db_session.execute(delete(DocumentChunk))
     db_session.execute(delete(Document))
+    db_session.execute(delete(MetricFeature))
     db_session.execute(delete(NormalizedMetric))
     db_session.execute(delete(RawObservation))
     db_session.execute(delete(MetricDefinition))
