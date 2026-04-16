@@ -53,16 +53,28 @@ The V1 system evaluates six causal modules:
 
 | Module | What it asks | Example signals |
 | --- | --- | --- |
-| `diffusion` | Is AI spreading fast enough to matter economically? | adoption rates, rollout intensity, hours saved |
-| `productivity` | Is AI increasing output per worker or reducing hours per unit of output? | labor productivity, revenue per employee |
-| `labor` | Is productivity showing up as complement or substitution? | exposed job postings, layoffs, unemployment |
+| `diffusion` | Is AI spreading fast enough to matter economically? | adoption rates, rollout intensity, hours saved, India IT AI revenue share |
+| `productivity` | Is AI increasing output per worker or reducing hours per unit of output? | labor productivity, revenue per employee, India IT revenue/headcount, utilization rate |
+| `labor` | Is productivity showing up as complement or substitution? | exposed job postings, layoffs, unemployment, India IT Big-4 headcount trend |
 | `demand` | Is labor compression leaking into consumption? | discretionary spending, travel, restaurant spend, savings |
 | `intermediation` | Are friction-based or SaaS-like business models losing pricing power? | renewal discounts, build-vs-buy mentions, take-rate pressure |
 | `credit_housing` | Is the shock spreading into household balance sheets and housing? | delinquencies, HELOC draws, revolving balances, home prices |
 
+### India IT proxy
+
+TCS, Infosys, Wipro, and HCL collectively employ ~1.4 million white-collar workers and run AI delivery at enterprise scale for global clients. Their quarterly earnings reports are a high-frequency proxy for three modules simultaneously:
+
+- **labor**: Big-4 combined headcount YoY captures whether global white-collar IT demand is expanding or contracting under AI pressure.
+- **productivity**: TCS revenue per employee YoY and Wipro billable utilization rate measure whether the same headcount is producing more output — the citadel signal — or whether output is flat while headcount falls.
+- **diffusion**: TCS annualized AI revenue as a share of total revenue (7.5% in Q4 FY26, up from ~4% in FY25) measures enterprise-scale AI adoption speed independently of any US survey data.
+
+This proxy is particularly useful because India IT earnings are published quarterly with consistent methodology, cover both the supply side (what AI can do in delivery) and the demand side (what clients are buying), and are insulated from US survey self-reporting bias.
+
+Data is seeded manually from press releases via `seed-india-it-data`. Quality scores on approximated intermediate quarters are set to 0.70 to reflect lower confidence.
+
 V1 is intentionally narrow:
 
-- `US-only`
+- `US-only` scope for macro signals; India IT used as a global proxy, not a domestic indicator
 - public data only
 - headless only
 - no dashboard
@@ -134,10 +146,11 @@ The API is read-heavy and administrative. Analytical logic lives in domain and p
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run alembic upgrade head
 ```
 
-4. Seed reference data:
+4. Seed reference data and India IT historical data:
 
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-reference-data
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-india-it-data
 ```
 
 5. Run the test suite if you want a clean local verification pass:
@@ -164,11 +177,14 @@ Print the installed version:
 uv run ai-thesis-monitor version
 ```
 
-Seed reference metadata:
+Seed reference metadata and India IT historical data points:
 
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-reference-data
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:54321/ai_thesis_monitor uv run python -m ai_thesis_monitor.cli.main seed-india-it-data
 ```
+
+`seed-india-it-data` is idempotent. Re-run after each quarterly earnings season to add the latest data point. Data lives in `src/ai_thesis_monitor/db/seeds/india_it_data.py`.
 
 Reserved daily and weekly job entrypoints:
 
@@ -208,12 +224,24 @@ The main architectural rule is separation of concerns:
 - ingestion code should convert external material into internal artifacts
 - persistence code should store and retrieve state, not decide analytical outcomes
 
+## Current Evidence State
+
+As of 2026-04-16, three modules have live data:
+
+| Module | Regime | Lead signal |
+| --- | --- | --- |
+| `productivity` | **strong_citadel** | TCS revenue/employee +9% YoY; Wipro utilization +3.4σ above baseline; BLS +2.5% |
+| `diffusion` | neutral | TCS AI revenue 7.5% of total — both theses agree adoption is growing |
+| `labor` | leaning_citrini | Big-4 headcount -1.1% YoY; 25 text claims (Block, Meta, Pinterest AI layoffs) pending review |
+
+The `demand`, `intermediation`, and `credit_housing` modules have metric definitions but no live data yet.
+
 ## MVP Boundaries
 
 The current V1 contract is:
 
 - public sources only
-- US-only scope
+- US-only scope for macro indicators; India IT used as global proxy
 - headless execution
 - no end-user dashboard
 - no end-to-end black-box scoring
