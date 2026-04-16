@@ -35,4 +35,17 @@ SOURCE_SEED_ROWS: list[dict] = [
         "reliability_score": 0.82,
         "active": True,
     },
+    {
+        "source_key": "india_it_earnings",
+        "source_name": "India IT Earnings (TCS/Infosys/Wipro/HCL)",
+        "source_type": "manual",
+        "base_url": "https://www.tcs.com/who-we-are/newsroom",
+        "config": {
+            "kind": "quarterly_earnings",
+            "companies": ["TCS", "Infosys", "Wipro", "HCL"],
+            "note": "Manually seeded from quarterly press releases. Proxy for white-collar labor and AI diffusion.",
+        },
+        "reliability_score": 0.90,
+        "active": True,
+    },
 ]

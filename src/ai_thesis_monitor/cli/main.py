@@ -12,12 +12,20 @@ from sqlalchemy.orm import Session
 from ai_thesis_monitor import __version__
 from ai_thesis_monitor.app.db import build_session_factory
 from ai_thesis_monitor.app.settings import Settings
-from ai_thesis_monitor.db.models.core import MetricDefinition, Source
+from ai_thesis_monitor.db.models.analytics import NormalizedMetric
+from ai_thesis_monitor.db.models.core import MetricDefinition, RawObservation, Source
+from ai_thesis_monitor.db.seeds.india_it_data import INDIA_IT_DATA
 from ai_thesis_monitor.db.seeds.metric_definitions import METRIC_DEFINITION_SEED_ROWS
 from ai_thesis_monitor.db.seeds.sources import SOURCE_SEED_ROWS
 from ai_thesis_monitor.ingestion.pipelines.features import run_feature_pipeline
-from ai_thesis_monitor.ingestion.pipelines.structured import StructuredPipelineResult, run_structured_pipeline
-from ai_thesis_monitor.ingestion.pipelines.text import TextPipelineResult, run_text_pipeline
+from ai_thesis_monitor.ingestion.pipelines.structured import (
+    StructuredPipelineResult,
+    run_structured_pipeline,
+)
+from ai_thesis_monitor.ingestion.pipelines.text import (
+    TextPipelineResult,
+    run_text_pipeline,
+)
 from ai_thesis_monitor.ingestion.pipelines.weekly import run_weekly_pipeline
 from ai_thesis_monitor.ops.replay.service import replay_week as replay_week_service
 
@@ -49,7 +57,9 @@ def seed_reference_data() -> None:
     session_factory = build_session_factory(Settings.from_env())
     with session_factory() as session:
         for payload in SOURCE_SEED_ROWS:
-            existing = session.scalar(select(Source).where(Source.source_key == payload["source_key"]))
+            existing = session.scalar(
+                select(Source).where(Source.source_key == payload["source_key"])
+            )
             if existing is None:
                 session.add(Source(**payload))
             else:
@@ -58,7 +68,9 @@ def seed_reference_data() -> None:
 
         for payload in METRIC_DEFINITION_SEED_ROWS:
             existing = session.scalar(
-                select(MetricDefinition).where(MetricDefinition.metric_key == payload["metric_key"])
+                select(MetricDefinition).where(
+                    MetricDefinition.metric_key == payload["metric_key"]
+                )
             )
             if existing is None:
                 session.add(MetricDefinition(**payload))
@@ -72,6 +84,92 @@ def seed_reference_data() -> None:
         f"Seeded reference data: {len(SOURCE_SEED_ROWS)} sources, "
         f"{len(METRIC_DEFINITION_SEED_ROWS)} metric definitions."
     )
+
+
+@app.command("seed-india-it-data")
+def seed_india_it_data() -> None:
+    """Upsert historical India IT earnings data points (TCS/Wipro/Big-4 proxy metrics)."""
+
+    import hashlib
+    import json
+
+    session_factory = build_session_factory(Settings.from_env())
+    with session_factory() as session:
+        source = session.scalar(
+            select(Source).where(Source.source_key == "india_it_earnings")
+        )
+        if source is None:
+            raise typer.BadParameter(
+                "Source 'india_it_earnings' not found. Run seed-reference-data first."
+            )
+
+        total_written = 0
+        for metric_key, data_points in INDIA_IT_DATA.items():
+            definition = session.scalar(
+                select(MetricDefinition).where(
+                    MetricDefinition.metric_key == metric_key
+                )
+            )
+            if definition is None:
+                typer.echo(f"  skip {metric_key}: metric definition not found")
+                continue
+
+            raw_payload = {"metric_key": metric_key, "source": "india_it_earnings"}
+            content_hash = hashlib.sha256(
+                json.dumps(raw_payload, sort_keys=True).encode()
+            ).hexdigest()
+            raw_obs = session.scalar(
+                select(RawObservation).where(
+                    RawObservation.source_id == source.id,
+                    RawObservation.content_hash == content_hash,
+                )
+            )
+            if raw_obs is None:
+                raw_obs = RawObservation(
+                    source_id=source.id,
+                    payload=raw_payload,
+                    content_hash=content_hash,
+                )
+                session.add(raw_obs)
+                session.flush()
+
+            written = 0
+            for observed_date, value, quality_score, notes in data_points:
+                existing = session.scalar(
+                    select(NormalizedMetric).where(
+                        NormalizedMetric.metric_definition_id == definition.id,
+                        NormalizedMetric.source_id == source.id,
+                        NormalizedMetric.observed_date == observed_date,
+                        NormalizedMetric.geo.is_(None),
+                        NormalizedMetric.segment.is_(None),
+                    )
+                )
+                if existing is None:
+                    session.add(
+                        NormalizedMetric(
+                            metric_definition_id=definition.id,
+                            source_id=source.id,
+                            raw_observation_id=raw_obs.id,
+                            observed_date=observed_date,
+                            value=value,
+                            quality_score=str(quality_score),
+                            notes=notes,
+                        )
+                    )
+                    written += 1
+                else:
+                    existing.value = value
+                    existing.quality_score = str(quality_score)
+                    existing.notes = notes
+
+            typer.echo(
+                f"  {metric_key}: {written} new points ({len(data_points)} total)"
+            )
+            total_written += written
+
+        session.commit()
+
+    typer.echo(f"India IT seed complete: {total_written} new metric rows written.")
 
 
 @app.command("run-daily")
@@ -109,7 +207,9 @@ def run_daily() -> None:
 def run_weekly(score_date: str | None = typer.Argument(None)) -> None:
     """Run the weekly scoring pipeline for a specific date or today."""
 
-    resolved_score_date = date.fromisoformat(score_date) if score_date is not None else date.today()
+    resolved_score_date = (
+        date.fromisoformat(score_date) if score_date is not None else date.today()
+    )
     session_factory = build_session_factory(Settings.from_env())
     with session_factory() as session:
         result = run_weekly_pipeline(session=session, score_date=resolved_score_date)
