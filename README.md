@@ -236,6 +236,20 @@ As of 2026-04-16, three modules have live data:
 
 The `demand`, `intermediation`, and `credit_housing` modules have metric definitions but no live data yet.
 
+### India IT Big-4 proxy — visualization (snapshot 2026-05-02)
+
+![India IT Big-4 4-panel snapshot](docs/charts/india-it-snapshot-2026-05-02.png)
+
+Filled markers (●) = confirmed from primary source (quality_score ≥ 0.85). Open markers (○) = approximated intermediate quarters (quality_score < 0.85). Dashed line connects all points; visual continuity, not interpolated data.
+
+**What to read**:
+- **Top-left (Big-4 headcount)**: cumulative compression -58k peak-to-trough (FY25 start 1,441k → FY26 Q3 trough 1,383k), partial recovery in Q4 FY26 (+16k to 1,399k). Inconclusive on its own — Q1 FY27 (Jul 2026 release) is the decisive next observation.
+- **Top-right (TCS rev/employee)**: clean +14% trajectory over 2 years, accelerating in last 4 quarters. Citadel-leaning but does not distinguish productivity-augmentation from substitution.
+- **Bottom-left (TCS AI revenue %)**: linear acceleration 2.5% → 7.5% over 18 months. Adoption confirmed; both theses agree.
+- **Bottom-right (Wipro utilization)**: +2pp over 5 quarters. Productivity locked in; would suggest citadel if combined with stable hiring, citrini if combined with continued headcount decline.
+
+Chart filename includes the date so staleness is visible. Regenerate via the inline matplotlib script (see `docs/charts/`) when `seed-india-it-data` is updated.
+
 ## Outlook & Forecast (snapshot 2026-05-02)
 
 This section records a point-in-time qualitative view that the system's quantitative output is meant to **falsify**, not confirm. It exists to make explicit what the curator (a human) believes ahead of the data, so the data can either validate or override that belief.
