@@ -760,4 +760,322 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         is_leading=False,
         config={"source_key": "nalp_law_hiring", "manual": True, "active": False},
     ),
+    # =========================================================================
+    # FALSIFIER METRICS (added 2026-05-10) — instrument the 4 citrini-falsifiers
+    # surfaced via web-search synthesis. Sources: FRED-public + manual quarterly
+    # for PE-SaaS watchlist (private credit data not free).
+    # =========================================================================
+    # --- F1: PE-backed SaaS distress (module: intermediation) ---
+    _metric(
+        metric_key="hy_oas_software_proxy",
+        module_key="intermediation",
+        name="High-yield OAS — proxy for SaaS-loaded HY tranche",
+        description=(
+            "ICE BofA US HY OAS (BAMLH0A0HYM2). Proxy — wide market. Citrini-confirming "
+            "if widens >150bps over 4 weeks coinciding with iShares Expanded Tech-Software ETF (IGV) underperformance. PE-backed SaaS distress hits HY tranche first."
+        ),
+        frequency="daily",
+        unit="basis_points",
+        lag_category="leading",
+        weight=1.10,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=20,
+        is_leading=True,
+        config={"source_key": "fred", "series_id": "BAMLH0A0HYM2"},
+    ),
+    _metric(
+        metric_key="commercial_industrial_loans_4w",
+        module_key="intermediation",
+        name="Commercial & industrial loans — 4-week change",
+        description=(
+            "BUSLOANS (commercial & industrial loans, all commercial banks). "
+            "PE-backed SaaS refinancings show up here. Sharp 4-week deceleration "
+            "is citrini-confirming (credit channel tightening)."
+        ),
+        frequency="weekly",
+        unit="percent_change",
+        lag_category="confirmatory",
+        weight=0.85,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="pct_change_4w",
+        signal_transform="lower_is_citrini",
+        min_history_points=8,
+        is_leading=False,
+        config={"source_key": "fred", "series_id": "BUSLOANS"},
+    ),
+    _metric(
+        metric_key="pe_saas_watchlist_distressed_pct",
+        module_key="intermediation",
+        name="PE-backed SaaS watchlist — distressed share",
+        description=(
+            "Manual quarterly: % of tracked PE-backed software loans trading <80¢. "
+            "Watchlist: New Relic, Zendesk, Smartsheet, Hyland, Calabrio, Qlik DI. "
+            "Anchors: Medallia (Thoma Bravo $5.1B equity wiped Feb 2026), Pluralsight "
+            "(Vista $4B wiped 2024). Citrini-confirming if pct >= 30%."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=1.30,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=2,
+        is_leading=False,
+        config={
+            "source_key": "pe_saas_watchlist_manual",
+            "manual": True,
+            "watchlist": [
+                "new_relic",
+                "zendesk",
+                "smartsheet",
+                "hyland",
+                "calabrio",
+                "qlik_data_integration",
+            ],
+            "active": True,
+        },
+    ),
+    # --- F2: Velocity of money (module: demand) ---
+    _metric(
+        metric_key="m2_velocity",
+        module_key="demand",
+        name="M2 velocity of money",
+        description=(
+            "FRED M2V. Citrini predicts velocity stabilizing/declining as machines hold "
+            "income but don't spend (ghost GDP mechanism). >=2 consecutive quarters "
+            "decline is citrini-confirming. Citadel predicts velocity recovers with productivity."
+        ),
+        frequency="quarterly",
+        unit="ratio",
+        lag_category="confirmatory",
+        weight=1.00,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=4,
+        is_leading=False,
+        config={"source_key": "fred", "series_id": "M2V"},
+    ),
+    # --- F3: Mortgage market pressure (module: credit_housing) ---
+    _metric(
+        metric_key="mortgage_30y_rate",
+        module_key="credit_housing",
+        name="30-Year fixed mortgage rate",
+        description="FRED MORTGAGE30US. Composite signal with delinquency + price decline.",
+        frequency="weekly",
+        unit="percent",
+        lag_category="leading",
+        weight=0.80,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=4,
+        is_leading=True,
+        config={"source_key": "fred", "series_id": "MORTGAGE30US"},
+    ),
+    _metric(
+        metric_key="commercial_re_delinquency",
+        module_key="credit_housing",
+        name="Commercial real estate delinquency rate",
+        description=(
+            "FRED DRCRELACBS. Lagging but high-confidence. Citrini predicts mortgage "
+            "cascade; CRE typically rises first. Citrini-confirming if >=1.5% sustained 2Q."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=1.10,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=2,
+        is_leading=False,
+        config={"source_key": "fred", "series_id": "DRCRELACBS"},
+    ),
+    _metric(
+        metric_key="case_shiller_national_yoy",
+        module_key="credit_housing",
+        name="S&P/Case-Shiller national home price YoY",
+        description=(
+            "FRED CSUSHPISA. Citrini predicts price decline from white-collar income "
+            "compression. Sustained YoY <0 is citrini-confirming."
+        ),
+        frequency="monthly",
+        unit="index",
+        lag_category="confirmatory",
+        weight=0.95,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="yoy",
+        signal_transform="lower_is_citrini",
+        min_history_points=12,
+        is_leading=False,
+        config={"source_key": "fred", "series_id": "CSUSHPISA"},
+    ),
+    # --- F4: White-collar unemployment 25+ (module: labor) ---
+    _metric(
+        metric_key="unemployment_25plus_management_professional",
+        module_key="labor",
+        name="Unemployment 25+ — management/professional",
+        description=(
+            "BLS LNS14000048 (unemployment, 25+, management/professional/related). "
+            "Extends Brynjolfsson finding from <25 to 25+ pop. Citrini-confirming if "
+            "YoY change >=0.5pp sustained 3 months."
+        ),
+        frequency="monthly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=1.40,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=6,
+        is_leading=False,
+        config={
+            "source_key": "bls_extended",
+            "series_id": "LNS14000048",
+            "active": True,
+        },
+    ),
+    _metric(
+        metric_key="eci_professional_management_yoy",
+        module_key="labor",
+        name="ECI professional/management compensation YoY",
+        description=(
+            "FRED CIU2020000000000A. Wage growth in white-collar premium. "
+            "Deceleration is citrini-confirming (income compression channel)."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=0.85,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="yoy",
+        signal_transform="lower_is_citrini",
+        min_history_points=4,
+        is_leading=False,
+        config={"source_key": "fred", "series_id": "CIU2020000000000A"},
+    ),
+    # =========================================================================
+    # THIRD-THESIS METRICS (module: infrastructure) — 2026-05-10
+    # Emerged from adjacent-possible web search. Neither citrini nor citadel
+    # modeled power/compute as deployment rate-limiter. Captures throttle on
+    # agentic AI scaling (Reynolds coefficient of citrini's reflexivity model).
+    # =========================================================================
+    _metric(
+        metric_key="datacenter_capacity_delay_pct",
+        module_key="infrastructure",
+        name="Data center capacity — % of planned GW delayed",
+        description=(
+            "Manual quarterly: % of announced 2026 capacity cancelled/slipped to 2028+. "
+            "Source: Sightline Climate + Bloomberg. Baseline 2026 Q2: 7 of 12 GW = 58%. "
+            "Higher = more throttle on citrini timeline. Third-thesis: not "
+            "citrini/citadel-axis-aligned, but reshapes both."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="leading",
+        weight=1.20,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "baseline_2026_q2": 0.58,
+            "note": "Higher = slower citrini timeline, citadel buys time.",
+            "active": True,
+        },
+    ),
+    _metric(
+        metric_key="transformer_lead_time_months",
+        module_key="infrastructure",
+        name="High-voltage transformer lead time (months)",
+        description=(
+            "Manual quarterly. Baseline 2026 Q2: 36-48 months (vs 12-18 pre-2024). "
+            "Source: industry reports + Bernstein research. Physical rate-limiter "
+            "on agentic AI deployment."
+        ),
+        frequency="quarterly",
+        unit="months",
+        lag_category="leading",
+        weight=0.90,
+        expected_direction_citadel="down",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "baseline_2026_q2": 42,
+            "active": True,
+        },
+    ),
+    _metric(
+        metric_key="us_datacenter_electricity_share",
+        module_key="infrastructure",
+        name="US data center electricity consumption share",
+        description=(
+            "EIA + DOE/LBNL projections. Baseline 2026 Q2: ~4.4% (176 TWh annual). "
+            "DOE projects up to 12% by 2030. Hard ceiling on agentic deployment."
+        ),
+        frequency="annual",
+        unit="share",
+        lag_category="confirmatory",
+        weight=0.70,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=False,
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "baseline_2026_q2": 0.044,
+            "active": True,
+        },
+    ),
+    _metric(
+        metric_key="hbm_cowos_capacity_booked_pct",
+        module_key="infrastructure",
+        name="CoWoS/HBM advanced packaging capacity booked",
+        description=(
+            "Manual quarterly: % of TSMC CoWoS capacity pre-booked through next 12mo. "
+            "Baseline 2026 Q2: Nvidia ~50% alone. Tight binding constraint upstream of "
+            "data center deployment. Caps agentic scaling rate."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="leading",
+        weight=0.80,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "baseline_2026_q2": 0.55,
+            "active": True,
+        },
+    ),
 ]

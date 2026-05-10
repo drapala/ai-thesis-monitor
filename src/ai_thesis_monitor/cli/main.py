@@ -259,6 +259,52 @@ def _active_text_source_keys(session: Session) -> list[str]:
     return [source.source_key for source in sources]
 
 
+@app.command("adjacent-possible-plan")
+def adjacent_possible_plan(
+    lean: str = typer.Option(
+        "neutral",
+        "--lean",
+        help=(
+            "Current scoring regime: strong_citadel | leaning_citadel | neutral "
+            "| leaning_citrini | strong_citrini"
+        ),
+    ),
+    n: int = typer.Option(12, "--n", help="Total queries to generate."),
+    year: int | None = typer.Option(
+        None, "--year", help="Year for query templates (default: current)."
+    ),
+    output: str | None = typer.Option(
+        None, "--output", help="Path to write markdown plan. Default: stdout."
+    ),
+) -> None:
+    """Generate Bradford-respecting adjacent-possible query plan.
+
+    Captures the corrective mechanism that surfaced the power-bottleneck
+    third thesis on 2026-05-10. Run before weekly snapshot to refresh
+    evidence with explicit confirming/challenging/adjacent quotas.
+
+    Examples:
+        ai-thesis-monitor adjacent-possible-plan --lean leaning_citrini --n 12
+        ai-thesis-monitor adjacent-possible-plan --lean neutral --n 20 \\
+            --output outputs/query-plan-$(date +%F).md
+    """
+    from ai_thesis_monitor.domain.adjacent_possible import (
+        build_query_plan,
+        render_plan_markdown,
+    )
+
+    plan = build_query_plan(current_lean=lean, n_queries=n, year=year)
+    markdown = render_plan_markdown(plan)
+
+    if output:
+        from pathlib import Path
+
+        Path(output).write_text(markdown)
+        typer.echo(f"Wrote query plan to {output}")
+    else:
+        typer.echo(markdown)
+
+
 def main() -> None:
     app()
 

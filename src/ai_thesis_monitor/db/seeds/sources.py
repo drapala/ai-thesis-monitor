@@ -145,4 +145,79 @@ SOURCE_SEED_ROWS: list[dict] = [
         "reliability_score": 0.75,
         "active": False,
     },
+    # =========================================================================
+    # Falsifier + third-thesis sources (added 2026-05-10)
+    # =========================================================================
+    {
+        "source_key": "bls_extended",
+        "source_name": "BLS API (extended CPS/JOLTS series)",
+        "source_type": "structured_api",
+        "base_url": "https://api.bls.gov/publicAPI/v2",
+        "config": {
+            "kind": "bls_v2",
+            "note": (
+                "Public API. Series: LNS14000048 (unemployment 25+ mgmt/prof), "
+                "LNS14000003 (professional services), JTS1000HIL (JOLTS hires IT), "
+                "JTS5000QUL (JOLTS quits prof svcs), CIU2020000000000A (ECI prof/mgmt). "
+                "Free tier: 25 req/day; register for 500/day."
+            ),
+            "rate_limit_daily": 25,
+        },
+        "reliability_score": 0.95,
+        "active": True,
+    },
+    {
+        "source_key": "pe_saas_watchlist_manual",
+        "source_name": "PE-backed SaaS distress watchlist (manual)",
+        "source_type": "manual",
+        "base_url": "https://www.saastr.com",
+        "config": {
+            "kind": "credit_distress_manual",
+            "watchlist": [
+                "new_relic",
+                "zendesk",
+                "smartsheet",
+                "hyland",
+                "calabrio",
+                "qlik_data_integration",
+            ],
+            "anchors": {
+                "medallia": "Thoma Bravo $6.4B 2021 → $5.1B equity wiped Feb 2026",
+                "pluralsight": "Vista $3.5B 2021 → $4B equity wiped 2024",
+            },
+            "note": (
+                "Quarterly manual update. Secondary loan trading levels from "
+                "SaaStr/PitchBook/CIO reports. Distressed = trading <80¢."
+            ),
+        },
+        "reliability_score": 0.80,
+        "active": True,
+    },
+    {
+        "source_key": "infrastructure_manual",
+        "source_name": "Power/compute infrastructure (third-thesis)",
+        "source_type": "manual",
+        "base_url": "https://www.sightlineclimate.com",
+        "config": {
+            "kind": "physical_throttle_manual",
+            "tracks": [
+                "datacenter_capacity_delay_gw",
+                "transformer_lead_time_months",
+                "us_datacenter_electricity_twh",
+                "hbm_cowos_booking_pct",
+            ],
+            "sources_referenced": [
+                "Sightline Climate data center tracker",
+                "Bloomberg + Bernstein research",
+                "DOE / Lawrence Berkeley National Laboratory projections",
+                "TSMC CoWoS capacity (quarterly conference calls)",
+            ],
+            "note": (
+                "Third-thesis: power/compute as agentic-deployment rate-limiter. "
+                "Neither citrini nor citadel modeled this."
+            ),
+        },
+        "reliability_score": 0.85,
+        "active": True,
+    },
 ]
