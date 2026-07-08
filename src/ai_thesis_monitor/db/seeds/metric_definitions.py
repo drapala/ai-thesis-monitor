@@ -1078,4 +1078,231 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
             "active": True,
         },
     ),
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # EMERGENT THESIS MODULES — surfaced by /thesis-update 2026-07-07 (Bradford-respected,
+    # 18 WebSearches, every value URL-cited in outputs/thesis-update-2026-07-07.md).
+    # These score on their OWN module rows — NOT folded into citadel/citrini (per the skill).
+    # ═══════════════════════════════════════════════════════════════════════════════
+    #
+    # ── open_source_deflation: Chinese open-weight models commoditize frontier value
+    #    faster than capex is recouped. Graduated from May-2026 candidate → primary force.
+    _metric(
+        metric_key="chinese_model_token_share_openrouter",
+        module_key="deflation",
+        name="Chinese-model token share (OpenRouter, US companies)",
+        description=(
+            "Share of tokens from US companies routed to Chinese open-weight models on OpenRouter. "
+            "2026-07: >30% every week since Feb 8 (peaked 46%) vs 11% trailing-12mo and 4.5% H1'25. "
+            "Platform-wide Chinese share ~51% (Apr); US-model share collapsed 70%->30% Jun'25->Jun'26. "
+            "Rising = open-source-deflation thesis stronger."
+        ),
+        frequency="weekly",
+        unit="share",
+        lag_category="leading",
+        weight=1.30,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_07": 0.30, "peak": 0.46},
+    ),
+    _metric(
+        metric_key="frontier_token_price_usd_per_m",
+        module_key="deflation",
+        name="Blended paid token price (USD/M)",
+        description=(
+            "Blended price per million tokens paid by users: ~$1.90 (late 2024) -> ~$0.65 (May 2026). "
+            "GPT-4-class $20/M (2022) -> ~$0.40/M (2026) ~= 1000x. Falling = deflation. "
+            "Counter (Jevons): see token_consumption_volume — volume 19x offsets the price drop."
+        ),
+        frequency="monthly",
+        unit="usd",
+        lag_category="leading",
+        weight=1.20,
+        expected_direction_citadel="down",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_05": 0.65},
+    ),
+    _metric(
+        metric_key="us_frontier_lab_price_cut_events",
+        module_key="deflation",
+        name="US frontier lab price-cut events",
+        description=(
+            "Count of US frontier labs cutting API prices under Chinese-open pressure. 2026-06-30: "
+            "Anthropic cut (Sonnet 5 $2/$10 vs Opus $5/$25). OpenAI weighing (Altman: 'costs a huge "
+            "issue', unconfirmed as of Jul 2). Deflation reaching the PROVIDER layer = 'margin "
+            "recovery is a math problem with no clean solution'."
+        ),
+        frequency="monthly",
+        unit="count",
+        lag_category="confirmatory",
+        weight=1.10,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="count_4w",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_07": 1},
+    ),
+    _metric(
+        metric_key="intelligence_gap_us_china_open",
+        module_key="deflation",
+        name="Capability gap: best US vs best Chinese open model",
+        description=(
+            "Artificial Analysis Intelligence Index points between best US (Opus 4.8 ~55.7) and best "
+            "Chinese open-weight (GLM-5.2 ~51) = ~4.7, shrinking. Stanford AI Index (Arena): US-China "
+            "gap collapsed to 2.7%. Narrowing = deflation thesis stronger (cheap ~= good-enough)."
+        ),
+        frequency="quarterly",
+        unit="index",
+        lag_category="leading",
+        weight=1.00,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_q2": 4.7},
+    ),
+    _metric(
+        metric_key="india_it_ai_deflation_guidance",
+        module_key="deflation",
+        name="India IT AI-deflation revenue guidance",
+        description=(
+            "AI deflation now in the India IT proxy the monitor already tracks: HCL CEO guides future "
+            "revenue DIPS 3-5% from AI deflation; Infosys expects deflation to become a factor. Links "
+            "the deflation thesis to the labor/diffusion proxy."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="confirmatory",
+        weight=0.90,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=1,
+        is_leading=False,
+        config={"source_key": "india_it_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026": -4.0},
+    ),
+    _metric(
+        metric_key="token_consumption_volume_monthly",
+        module_key="deflation",
+        name="Total paid token consumption (Jevons falsifier)",
+        description=(
+            "FALSIFIER of the deflation-bear read: monthly paid token volume ~24,000B by May 2026, "
+            "~19x from late 2024, EVEN AS price/M fell $1.90->$0.65. Jevons — cheaper intelligence "
+            "expands the market. Rising fast = deflation may GROW revenue, not kill it."
+        ),
+        frequency="monthly",
+        unit="index",
+        lag_category="leading",
+        weight=1.10,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citadel",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "role": "falsifier", "baseline_2026_05_billions": 24000},
+    ),
+    #
+    # ── ai_financing_fragility: circular Nvidia<->neocloud<->hyperscaler funding + GPU-collateral
+    #    debt. Neither citadel nor citrini models the FINANCING structure. New 2026-07-07.
+    _metric(
+        metric_key="openai_commitments_to_revenue_ratio",
+        module_key="financing_fragility",
+        name="OpenAI compute commitments / revenue",
+        description=(
+            "OpenAI ~$600B compute target by 2030 (reset from $1.4T thru 2033; $1.09T infra deals: "
+            "Oracle $300B, AMD $90B, AWS $38B) vs ~$13.1B revenue (2025). Ratio ~46x. CFO fears $1.5T "
+            "commitments 'can't be paid'; needs $280B revenue by 2030. Circular: Nvidia->OpenAI->Nvidia."
+        ),
+        frequency="quarterly",
+        unit="ratio",
+        lag_category="leading",
+        weight=1.20,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "financing_manual", "manual": True, "emergent_thesis": "ai_financing_fragility", "baseline_2026": 46.0},
+    ),
+    _metric(
+        metric_key="gpu_collateral_debt_issuance_usd_bn",
+        module_key="financing_fragility",
+        name="AI data-center / GPU-collateral debt issuance ($bn)",
+        description=(
+            "AI DC debt issuance >$200bn (2025); Morgan Stanley $250-300bn hyperscaler 2026; IG "
+            "issuance could top $2T in 2026. CoreWeave alone 3 GPU-backed loans $12.4bn + $8.5bn IG. "
+            "GPU 7yr lifecycle vs 20-30yr facility = mismatch; first maturities 2026-27. Fed/BIS/Treasury/4-senators warned."
+        ),
+        frequency="quarterly",
+        unit="usd",
+        lag_category="leading",
+        weight=1.10,
+        expected_direction_citadel="down",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="higher_is_citrini",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "financing_manual", "manual": True, "emergent_thesis": "ai_financing_fragility", "baseline_2025_billions": 200},
+    ),
+    #
+    # ── power_bottleneck: electricity (not chips) is the binding constraint. Extends the
+    #    existing `infrastructure` module (already home to the CoWoS throttle metric).
+    _metric(
+        metric_key="datacenter_capacity_delay_pct",
+        module_key="infrastructure",
+        name="Data center capacity delayed/cancelled",
+        description=(
+            "Share of planned data centers delayed/cancelled by grid. IEA: ~20% of planned projects at "
+            "significant risk; Sightline: 30-50% of 2026 large DCs delayed/cancelled; 11 GW announced "
+            "with no construction ('7 GW gap': 12-16 planned vs ~5 building). Utilities now question if "
+            "the pipeline is real. Throttles agentic-deployment rate."
+        ),
+        frequency="quarterly",
+        unit="percent",
+        lag_category="leading",
+        weight=0.90,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "infrastructure_manual", "manual": True, "emergent_thesis": "power_bottleneck", "baseline_2026_q2": 0.20},
+    ),
+    _metric(
+        metric_key="grid_interconnection_queue_months",
+        module_key="infrastructure",
+        name="Grid interconnection queue (months)",
+        description=(
+            "Wait for grid interconnection in key markets: 4-7yr (N.Virginia/Phoenix/Dallas), up to a "
+            "decade in some regions. PJM queue 2,600 GW pending, avg >5yr. Transmission lines up to 8yr. "
+            "Behind-the-meter gas (18-24mo) is the workaround. Binds the buildout more than GPU supply."
+        ),
+        frequency="quarterly",
+        unit="months",
+        lag_category="leading",
+        weight=0.80,
+        expected_direction_citadel="up",
+        expected_direction_citrini="up",
+        primary_feature_key="level",
+        signal_transform="third_thesis_throttle",
+        min_history_points=1,
+        is_leading=True,
+        config={"source_key": "infrastructure_manual", "manual": True, "emergent_thesis": "power_bottleneck", "baseline_2026_q2_months": 60},
+    ),
 ]

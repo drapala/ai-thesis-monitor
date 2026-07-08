@@ -64,6 +64,29 @@ Nenhuma bolha "estourou", e a evidência NÃO confirma a versão apocalíptica d
 2. **Citadel segue certo no near-term labor** (fricção institucional é real e cara), então o "colapso de emprego" não está nos dados — é hiring-freeze + entry-level + K-shaped, não terminações em massa.
 3. **O risco sistêmico real não está em citadel nem citrini** — está no financiamento circular (Nvidia/neocloud/$7T debt) + power bottleneck (30-50% dos DCs atrasados). Aí mora o gatilho de bolha, não no "capex parar".
 
+## Round 2 — pesquisa mais funda (6 queries) + módulos implementados
+
+**Módulos NOVOS no código** (`metric_definitions.py`): `deflation` (6 métricas), `financing_fragility` (2), + `power_bottleneck` estendendo `infrastructure` (2). Cada um score em **linha própria** (não dobrado em citadel/citrini).
+
+### open_source_deflation — é DURÁVEL, não só loss-leader (falsificação feita)
+- **A deflação é estrutural, não subsídio temporário:** MoE é o piso — GLM-5.2 ativa **40B de 744B params** → custo de servir = modelo denso de 40B (redução de custo de inferência **90-97%**). DeepSeek tornou o desconto do V4-Pro **permanente**; Z.ai até **AUMENTOU** preço (escolheu sustentável). Subsídio existe (free tiers, luz -50% Gansu/Guizhou, Xiaomi cross-subsidy $8.7B, Xiaomi cortou 99%) mas é camada, não a explicação toda.
+- **Chegou aos PROVEDORES US:** Anthropic **cortou preço 30/jun** (Sonnet 5 $2/$10 vs Opus $5/$25); OpenAI avaliando (Altman: "costs a huge issue"). "Enquanto a China ficar open-source, o piso do preço cai rumo a zero — recuperar margem é um problema de matemática sem solução limpa."
+- **Capability convergiu:** Stanford AI Index — gap US-China **2.7%** (Arena); Artificial Analysis — Opus 4.8 55.7 vs GLM-5.2 51 = ~4.7, encolhendo.
+- **O CONTRA real (Jevons — implementei como falsifier):** consumo pago **~24.000B tokens/mês (mai'26), ~19x** desde fim-2024, mesmo com preço $1.90→$0.65/M. Deflação pode **expandir** o mercado, não matar. Isto impede o read apocalíptico.
+- **Fonte:** [CNBC](https://www.cnbc.com/2026/07/07/chinese-ai-models-costs-us-openai-anthropic.html), [Rest of World](https://restofworld.org/2026/when-americans-choose-chinese-ai/), [USCC report](https://www.uscc.gov/sites/default/files/2026-03/Two_Loops--How_Chinas_Open_AI_Strategy_Reinforces_Its_Industrial_Dominance.pdf), [Stanford AI Index](https://thenextweb.com/news/stanford-ai-index-2026-china-us-performance-gap), [WSJ via cryptobriefing](https://cryptobriefing.com/openai-anthropic-pricing-pressure-chinese-ai/)
+
+### power_bottleneck — quantificado
+IEA: DC global 415→945 TWh (2024→2030), 2x+; US = 45% do global, +130% até 2030; DC = 4.4%→6.7-12% da eletricidade US. **~20% dos projetos em risco de atraso** (IEA); PJM queue **2.600 GW pendentes, espera >5 anos**; linhas de transmissão até 8 anos. [IEA](https://www.iea.org/reports/energy-and-ai/executive-summary), [Latitude/IEA](https://www.latitudemedia.com/news/report-global-grid-congestion-puts-20-of-data-center-projects-at-risk/)
+
+### ai_financing_fragility — quantificado
+DC global pode chegar a **$7T até 2030** (McKinsey). Dívida AI-DC >$200bn (2025) → IG issuance pode passar **$2T em 2026**. CoreWeave: 3 loans GPU-backed **$12.4bn** + $8.5bn IG. OpenAI comprometeu **$1.09T** (Oracle $300B/AMD $90B/AWS $38B), reset pra ~$600B/2030, vs **$13.1B receita** = ~46x; CFO teme "$1.5T can't be paid". Fed: 25% dos loans banco→NBFI vão a private credit; 4 senadores + BIS + Treasury alertaram. Paralelo: fibra-ótica 2000 destruiu $2T. [Goldman](https://www.goldmansachs.com/insights/articles/tracking-trillions-the-assumptions-shaping-scale-of-the-ai-build-out), [SemiAnalysis](https://newsletter.semianalysis.com/p/nvidia-gpu-debt-backstop-unleashes), [ZeroHedge/CFO](https://www.zerohedge.com/markets/openai-misses-revenue-user-targets-cfo-fears-15-trillion-commitments-cant-be-paid)
+
+### O bull case (falsificação da bolha) — real também
+MSFT: AI run-rate **$37B (+123%)**, RPO **$627B (+99%)**, Azure **+40%** — MAS ex-OpenAI o RPO cresceu só **~26%** (OpenAI = 45% do RPO do Azure = concentração), Copilot **<5%** de penetração. Margens Mag-7 >25% (≠ 1999). Sequoia: **gap de receita de $600B/ano, alargando**. Consenso honesto: **os dois lados estão certos ao mesmo tempo; cronometrar o estouro é mais difícil que afirmar que ele existe.** [GeekWire/MSFT](https://www.geekwire.com/2026/microsoft-tops-wall-street-expectations-reports-accelerating-azure-growth-and-37b-ai-run-rate/), [Fortune](https://fortune.com/2026/06/08/ai-boom-tech-stocks-bubble-fears-earnings-growth-chipmakers-ipo/)
+
+### A verdade da realidade (leitura de 2 lados, sem torcida)
+A deflação (China/open-source) é o desenvolvimento novo mais forte e é **estrutural** (não some) — já força os provedores US a cortar preço, o que é o sinal mais direto de que a premissa "lucro trilionário garantido" está errada. **MAS** Jevons (19x volume) + receita real da MSFT impedem o colapso óbvio: barato-e-abundante pode crescer o bolo. O risco de bolha REAL não está em labor nem em "capex parar" — está no **financiamento circular ($7T dívida, OpenAI 46x)** + **power bottleneck (20-50% dos DCs atrasados)**. É aí que um credit-event dispara, não no vídeo.
+
 ## Sources
 (links inline acima — CNBC, NY Fed, MIT/Terminal-X, Fortune, McKinsey, Morgan Stanley, CIO, Retool, Tom's Hardware, Quinn Emanuel, Spheron/Sightline, The Register, Epoch AI, VantageScore, Challenger)
 
