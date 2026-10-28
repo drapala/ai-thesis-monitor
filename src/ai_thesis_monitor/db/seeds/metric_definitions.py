@@ -1106,7 +1106,13 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="third_thesis_throttle",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_07": 0.30, "peak": 0.46},
+        config={
+            "source_key": "deflation_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "baseline_2026_07": 0.30,
+            "peak": 0.46,
+        },
     ),
     _metric(
         metric_key="frontier_token_price_usd_per_m",
@@ -1127,7 +1133,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="lower_is_citrini",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_05": 0.65},
+        config={
+            "source_key": "deflation_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "baseline_2026_05": 0.65,
+        },
     ),
     _metric(
         metric_key="us_frontier_lab_price_cut_events",
@@ -1149,7 +1160,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="third_thesis_throttle",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_07": 1},
+        config={
+            "source_key": "deflation_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "baseline_2026_07": 1,
+        },
     ),
     _metric(
         metric_key="intelligence_gap_us_china_open",
@@ -1170,7 +1186,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="lower_is_citrini",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026_q2": 4.7},
+        config={
+            "source_key": "deflation_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "baseline_2026_q2": 4.7,
+        },
     ),
     _metric(
         metric_key="india_it_ai_deflation_guidance",
@@ -1191,7 +1212,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="lower_is_citrini",
         min_history_points=1,
         is_leading=False,
-        config={"source_key": "india_it_manual", "manual": True, "emergent_thesis": "open_source_deflation", "baseline_2026": -4.0},
+        config={
+            "source_key": "india_it_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "baseline_2026": -4.0,
+        },
     ),
     _metric(
         metric_key="token_consumption_volume_monthly",
@@ -1212,7 +1238,13 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="higher_is_citadel",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "deflation_manual", "manual": True, "emergent_thesis": "open_source_deflation", "role": "falsifier", "baseline_2026_05_billions": 24000},
+        config={
+            "source_key": "deflation_manual",
+            "manual": True,
+            "emergent_thesis": "open_source_deflation",
+            "role": "falsifier",
+            "baseline_2026_05_billions": 24000,
+        },
     ),
     #
     # ── ai_financing_fragility: circular Nvidia<->neocloud<->hyperscaler funding + GPU-collateral
@@ -1236,7 +1268,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="higher_is_citrini",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "financing_manual", "manual": True, "emergent_thesis": "ai_financing_fragility", "baseline_2026": 46.0},
+        config={
+            "source_key": "financing_manual",
+            "manual": True,
+            "emergent_thesis": "ai_financing_fragility",
+            "baseline_2026": 46.0,
+        },
     ),
     _metric(
         metric_key="gpu_collateral_debt_issuance_usd_bn",
@@ -1257,7 +1294,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="higher_is_citrini",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "financing_manual", "manual": True, "emergent_thesis": "ai_financing_fragility", "baseline_2025_billions": 200},
+        config={
+            "source_key": "financing_manual",
+            "manual": True,
+            "emergent_thesis": "ai_financing_fragility",
+            "baseline_2025_billions": 200,
+        },
     ),
     #
     # ── power_bottleneck: electricity (not chips) is the binding constraint. Extends the
@@ -1282,7 +1324,12 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="third_thesis_throttle",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "infrastructure_manual", "manual": True, "emergent_thesis": "power_bottleneck", "baseline_2026_q2": 0.20},
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "emergent_thesis": "power_bottleneck",
+            "baseline_2026_q2": 0.20,
+        },
     ),
     _metric(
         metric_key="grid_interconnection_queue_months",
@@ -1303,6 +1350,66 @@ METRIC_DEFINITION_SEED_ROWS: list[dict] = [
         signal_transform="third_thesis_throttle",
         min_history_points=1,
         is_leading=True,
-        config={"source_key": "infrastructure_manual", "manual": True, "emergent_thesis": "power_bottleneck", "baseline_2026_q2_months": 60},
+        config={
+            "source_key": "infrastructure_manual",
+            "manual": True,
+            "emergent_thesis": "power_bottleneck",
+            "baseline_2026_q2_months": 60,
+        },
+    ),
+    #
+    # ── capital_capture (Engels' pause): productivity gains accrue to profit, not wages, without
+    #    a jump in unemployment. Candidate from /thesis-update 2026-10-28. Own `distribution` row.
+    _metric(
+        metric_key="nonfarm_labor_share",
+        module_key="distribution",
+        name="Nonfarm business labor share",
+        description=(
+            "FRED PRS85006173 (index 2017=100). BLS level 52.8% in 2026Q2, lowest since 1947, while "
+            "productivity rose 2.2% YoY and nonfinancial unit profits rose 43% (annualized, one quarter). "
+            "Falling with low unemployment = capital capture. Confound: spring-2026 energy shock lowers "
+            "the share without AI; needs 2+ quarters after energy normalizes."
+        ),
+        frequency="quarterly",
+        unit="index",
+        lag_category="confirmatory",
+        weight=1.00,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=4,
+        is_leading=False,
+        config={
+            "source_key": "fred",
+            "series_id": "PRS85006173",
+            "emergent_thesis": "capital_capture",
+            "baseline_2026_q2_pct": 52.8,
+        },
+    ),
+    _metric(
+        metric_key="real_hourly_compensation",
+        module_key="distribution",
+        name="Nonfarm business real hourly compensation",
+        description=(
+            "FRED COMPRNFB (index 2017=100). 2026Q2: -3.3% annualized as energy prices rose faster than "
+            "pay. Capital capture holds if real pay stays below productivity growth after energy normalizes; "
+            "the thesis fails if real pay catches up with productivity."
+        ),
+        frequency="quarterly",
+        unit="index",
+        lag_category="confirmatory",
+        weight=0.80,
+        expected_direction_citadel="up",
+        expected_direction_citrini="down",
+        primary_feature_key="level",
+        signal_transform="lower_is_citrini",
+        min_history_points=4,
+        is_leading=False,
+        config={
+            "source_key": "fred",
+            "series_id": "COMPRNFB",
+            "emergent_thesis": "capital_capture",
+        },
     ),
 ]

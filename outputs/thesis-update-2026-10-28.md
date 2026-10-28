@@ -89,3 +89,35 @@ Links inline acima (BLS, CNBC, Stanford DEL, Challenger, NY Fed, Fed Beige Book,
 
 ---
 _Capability decomposition: session-context ~10% · Bradford-mandated falsification ~35% · base parametric ~5% (interpretação, não claims). OK._
+
+## Addendum — `capital_capture` explicado (2026-10-28)
+
+**A ideia:** a economia produz mais por hora trabalhada, mas o dinheiro extra vai quase todo para o lucro, não para o salário. Isso acontece sem demissão em massa, por isso nem citadel nem citrini enxergam.
+
+**O número:** de cada 100 que o setor empresarial não agrícola produz, uma parte paga salários e benefícios e o resto vira lucro, juros e renda do capital. No Q2 de 2026 a parte do trabalho foi **52,8%**, a menor desde 1947. Nas décadas do pós-guerra ficava em torno de 60% e vem caindo desde os anos 2000.
+
+**Exemplo:** uma empresa fatura 100 e paga 60 em salário (60%). Com AI, a mesma equipe produz 110 e o salário fica em 60. A fatia do trabalho cai para 54,5% e o lucro sobe de 40 para 50. Ninguém foi demitido.
+
+**Por que nenhuma das duas teses cobre:**
+- citadel diz que não há estrago porque os empregos continuam. Os empregos continuam, mas a fatia da renda de quem trabalha encolhe.
+- citrini espera o estrago por demissão (emprego → renda → consumo → crédito). Aqui a renda perde peso sem demissão: o salário fica para trás.
+
+**Analogia:** "Engels' pause" (Inglaterra, ~1800–1840): produção por trabalhador subiu muito e o salário real quase não subiu por décadas.
+
+**Por que ainda é candidata:**
+1. Choque de energia na primavera de 2026: preço sobe rápido, salário sobe devagar, e a fatia cai sem AI. O salário real por hora caiu 3,3% (anualizado) no Q2, o que aponta para energia.
+2. Lucro unitário +43% é de um só trimestre, anualizado, e oscila muito.
+3. A fatia já vinha caindo antes da AI (globalização, empresas gigantes). A AI seria mais um empurrão.
+
+**Teste de confirmação:**
+
+| Se acontecer | Leitura |
+|---|---|
+| Energia normaliza e a fatia volta para ~54–55% | Era energia. Tese cai. |
+| Energia normaliza e a fatia fica ~53% ou cai mais | Tese ganha força. |
+| A fatia cai mais nos setores que mais usam AI (software, finanças, serviços profissionais) | Teste mais forte a favor de AI como causa. |
+| Salário real volta a crescer junto com a produtividade | Tese cai. |
+
+**Se confirmada:** consumo fica mais dependente dos ricos (quem recebe lucro gasta uma parte menor de cada real extra); lucro alto sustenta a bolsa por um tempo; cresce a pressão política por taxar capital ou AI.
+
+**No código:** módulo `distribution` com `nonfarm_labor_share` (FRED PRS85006173) e `real_hourly_compensation` (FRED COMPRNFB), ambas `lower_is_citrini` em linha própria. Primeiro dado novo: produtividade do Q3, no início de novembro.
